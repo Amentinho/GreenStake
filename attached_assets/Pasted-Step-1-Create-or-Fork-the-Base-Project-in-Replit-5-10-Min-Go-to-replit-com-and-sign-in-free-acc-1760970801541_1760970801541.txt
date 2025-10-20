@@ -1,0 +1,314 @@
+Step 1: Create or Fork the Base Project in Replit (5–10 Min)
+
+Go to replit.com and sign in (free account works; GitHub login for easy forking).
+Click "Create Repl" → Search for "Node.js" or "HTML, CSS, JS" template, but we'll import the Avail template via GitHub.
+Fork the Avail Nexus Vite Template:
+In Replit, click "Import from GitHub" (or use the "+" button → "From GitHub").
+Repo URL: https://github.com/availproject/nexus-vite-template
+Name your Repl: greenstake-dex (or similar).
+This gives you a React + Vite + TypeScript base with ESLint, ready for Nexus. (If you prefer Next.js, use https://github.com/availproject/nexus-nextjs-template instead—swap vite dev for next dev below.)
+Once forked/imported, open the shell (bottom panel) and run:
+
+pnpm install  # Installs base deps (React, Vite, TS)
+If pnpm isn't available, Replit uses npm by default—run npm install instead.
+Step 2: Install Dependencies for GreenStake (5 Min)
+In the Replit shell, add these for web3, Nexus, ZKPs, AI, and bounties:
+
+basic
+
+pnpm add ethers @wagmi/core @wagmi/connectors viem @avail-project/nexus-core @avail-project/nexus-widgets @semaphore-protocol/contracts @huggingface/inference axios openzeppelin  # Core web3 + Nexus + ZKP + AI
+pnpm add -D hardhat @nomicfoundation/hardhat-toolbox  # For local contract testing (optional; use Remix for deploy)
+This pulls Nexus SDK (core for headless logic, widgets for UI), Semaphore for ZKPs, Hugging Face for AI, and ethers/Wagmi for wallets.
+Update package.json scripts (in root; edit via file tree):
+json
+
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test:contracts": "hardhat test"  // If using Hardhat
+  }
+}
+Run pnpm dev to start the server (opens preview at *.replit.dev—your live demo URL!).
+Step 3: Add Core Files & Code (20–40 Min)
+Replace/edit these files in Replit's file tree (left panel). I'll provide full code snippets. This builds the MVP flow: Connect wallet → AI forecast → ZKP stake → Nexus cross-chain trade → PYUSD settle → Autoscout view.
+
+Frontend: src/App.tsx (Main React component; replaces default. Integrates Nexus Provider, wallet, AI, stake/trade).
+
+tsx
+
+import { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+import { NexusProvider, useNexus } from '@avail-project/nexus-widgets';  // Nexus UI widgets
+import { useAccount, useConnect, useDisconnect } from 'wagmi';  // Wallet connect (Wagmi from template)
+import { injected } from '@wagmi/core/connectors';  // MetaMask connector
+import { HfInference } from '@huggingface/inference';  // AI
+import GreenStakeABI from './abis/GreenStakeABI.json';  // We'll create ABI below
+
+const CONTRACT_ADDRESS = '0xYourDeployedAddress';  // Replace after Remix deploy (Sepolia)
+const PYUSD_TESTNET = '0xA1ccE20eD3dE52E7D6A5C6C0fB0f7cB6a5e4f3d2';  // Mock PYUSD Sepolia (get real from docs)
+const hf = new HfInference('YOUR_HF_TOKEN');  // Get free token at huggingface.co (signup 1 min)
+
+function GreenStakeApp() {
+  const { address, isConnected } = useAccount();
+  const { connect } = useConnect({ connector: injected() });
+  const { disconnect } = useDisconnect();
+  const { handleInit, bridgeAndExecute } = useNexus();  // Nexus hooks
+  const [forecast, setForecast] = useState(0);
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
+
+  useEffect(() => {
+    if (window.ethereum) {
+      const prov = new ethers.BrowserProvider(window.ethereum);
+      setProvider(prov);
+      if (isConnected) handleInit(window.ethereum as any);  // Init Nexus on connect (per Avail docs)
+    }
+  }, [isConnected]);
+
+  // AI Forecast (Mock federated; call from historical data)
+  const predictConsumption = async () => {
+    try {
+      const historical = [1000, 1200, 1100];  // Mock kWh; in prod, from user/IPFS
+      const prompt = `Predict next energy use (kWh) from history: ${JSON.stringify(historical)}. Output number only.`;
+      const res = await hf.textGeneration({
+        model: 'gpt2',  // Or 'distilgpt2' for faster
+        inputs: prompt,
+        parameters: { max_new_tokens: 5, temperature: 0.7 }
+      });
+      const predicted = parseInt(res.generated_text.match(/\d+/)?.[0] || '1300');
+      setForecast(predicted);
+      // In prod: Send to contract oracle via provider
+    } catch (error) {
+      console.error('AI Forecast Error:', error);
+      setForecast(1300);  // Fallback
+    }
+  };
+
+  // ZKP Stake + Nexus Trade Flow
+  const stakeAndTrade = async () => {
+    if (!provider || !address || forecast === 0) return alert('Connect wallet & forecast first!');
+    const signer = await provider.getSigner();
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, GreenStakeABI, signer);
+
+    try {
+      // Step 1: ZKP Stake (Mock Semaphore proof; full in prod via Semaphore lib)
+      const zkpParams = {
+        groupId: 1,
+        merkleProofRoot: '0x...',  // From Semaphore group (setup off-chain)
+        signal: BigInt(forecast),  // Encoded needs
+        nullifierHash: 0n,
+        externalNullifier: 0n,
+        amount: ethers.parseEther('100')  // 100 ETK stake
+      };
+      const tx1 = await contract.stakeWithZKP(
+        zkpParams.groupId,
+        zkpParams.merkleProofRoot,
+        zkpParams.signal,
+        zkpParams.nullifierHash,
+        zkpParams.externalNullifier,
+        zkpParams.amount
+      );
+      await tx1.wait();
+      console.log('Staked anonymously!');
+
+      // Step 2: Nexus Bridge & Execute (Cross-chain to Avail rollup; qualifies Avail bounty)
+      // Intent: Bridge ETK from Ethereum to Avail, execute PYUSD trade
+      await bridgeAndExecute({
+        fromChain: 'ethereum-sepolia',
+        toChain: 'avail-testnet',  // Or your Avail-powered rollup
+        intent: { type: 'tradeEnergyForPYUSD', amount: 100, recipient: address },
+        tokenIn: CONTRACT_ADDRESS,  // ETK
+        tokenOut: PYUSD_TESTNET     // Settle in PYUSD (PYUSD bounty qual)
+      });
+      alert('Cross-chain trade executed! PYUSD settled via Nexus.');
+
+      // Step 3: Trigger Contract Trade (on destination chain)
+      const tx2 = await contract.executeTrade(ethers.parseEther('100'), address);
+      await tx2.wait();
+      console.log('Trade complete – Check Autoscout explorer!');
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <h1>GreenStake: Sustainable Energy DEX 🚀🌱</h1>
+      <p>Cross-chain renewable sharing with Nexus, PYUSD, and AI forecasts.</p>
+      {!isConnected ? (
+        <button onClick={() => connect()}>Connect MetaMask</button>
+      ) : (
+        <>
+          <p>Wallet: {address?.slice(0, 6)}...</p>
+          <button onClick={predictConsumption}>AI Forecast Consumption</button>
+          {forecast > 0 && <p>Predicted Needs: {forecast} kWh (Stake Basis)</p>}
+          <button onClick={stakeAndTrade} disabled={forecast === 0}>
+            ZKP Stake & Nexus Cross-Chain Trade (to PYUSD)
+          </button>
+          <button onClick={() => disconnect()}>Disconnect</button>
+        </>
+      )}
+      {/* Autoscout Embed (Blockscout bounty qual – replace with your instance URL) */}
+      {isConnected && (
+        <iframe
+          src="https://your-instance-name.cloud.blockscout.com"  // From deploy.blockscout.com
+          title="GreenStake Explorer"
+          width="100%"
+          height="400"
+          style={{ border: '1px solid green', marginTop: '20px' }}
+        />
+      )}
+      <p><em>Demo: Stake privately, forecast with AI, trade cross-chain seamlessly!</em></p>
+    </div>
+  );
+}
+
+// Wrap with NexusProvider (per Avail SDK docs)
+export default function App() {
+  return (
+    <NexusProvider chains={['ethereum-sepolia', 'avail-testnet']} projectId="YOUR_WALLETCONNECT_ID">  {/* Get free at walletconnect.com */}
+      <GreenStakeApp />
+    </NexusProvider>
+  );
+}
+ABI File: src/abis/GreenStakeABI.json (Create folder src/abis; paste contract ABI from Remix after compile/deploy. For now, mock with this skeleton).
+
+json
+
+[
+  {
+    "inputs": [{"name": "_pyusd", "type": "address"}],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {"name": "groupId", "type": "uint256"},
+      {"name": "merkleProofRoot", "type": "bytes32"},
+      {"name": "signal", "type": "uint256"},
+      {"name": "nullifierHash", "type": "uint256"},
+      {"name": "externalNullifier", "type": "uint256"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "name": "stakeWithZKP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"name": "energyAmount", "type": "uint256"},
+      {"name": "pyusdRecipient", "type": "address"}
+    ],
+    "name": "executeTrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
+Solidity Contract: contracts/GreenStakeDEX.sol (Create contracts folder. Compile/deploy via Remix—link below. This is the full contract from my last message).
+
+Paste the Solidity code I provided earlier (EnergyToken + GreenStakeDEX with ZKP and trade).
+Deploy Tip: Open remix.ethereum.org in another tab. Paste contract → Compile → Deploy to Sepolia (MetaMask). Copy address to CONTRACT_ADDRESS in App.tsx. Verify on Autoscout for bounty.
+AI Script: scripts/ai-forecast.js (Create scripts folder. Run in shell: node scripts/ai-forecast.js to test; call from frontend).
+
+javascript
+
+const { HfInference } = require('@huggingface/inference');
+
+const hf = new HfInference(process.env.HF_TOKEN || 'YOUR_HF_TOKEN');  // Set in Replit secrets (Tools > Secrets)
+
+async function forecastConsumption(historicalData) {
+  const prompt = `Predict next month's energy consumption (kWh) from history: ${JSON.stringify(historicalData)}. Respond with a number only.`;
+  try {
+    const response = await hf.textGeneration({
+      model: 'gpt2',
+      inputs: prompt,
+      parameters: { max_new_tokens: 10, temperature: 0.5 }
+    });
+    const match = response.generated_text.match(/\d+/);
+    return parseInt(match ? match[0] : 1300);  // Fallback
+  } catch (error) {
+    console.error('Forecast Error:', error);
+    return 1300;
+  }
+}
+
+// Test
+forecastConsumption([1000, 1200, 1100]).then(console.log).catch(console.error);
+Wagmi Config: src/config/wagmi.js (Create if needed; basic for wallet. Avail template may have it).
+
+javascript
+
+import { createConfig, http } from 'wagmi';
+import { sepolia } from 'wagmi/chains';
+import { injected } from '@wagmi/core/connectors';
+
+export const config = createConfig({
+  chains: [sepolia],
+  connectors: [injected()],
+  transports: { [sepolia.id]: http() }
+});
+Import in main.tsx: import { WagmiProvider } from 'wagmi'; <WagmiProvider config={config}>...</WagmiProvider>
+Step 4: Configure Secrets & Run (5 Min)
+
+In Replit (Tools > Secrets): Add HF_TOKEN=your_huggingface_token (for AI) and WALLETCONNECT_PROJECT_ID=your_id (free from walletconnect.com).
+For Nexus: Per Avail docs, init group off-chain (Semaphore CLI: npm i -g @semaphore-protocol/cli; run semaphore-cli group create 1 in shell).
+Run: pnpm dev → Preview opens. Test: Connect MetaMask (Sepolia network), forecast, stake/trade. Errors? Console log; paste here for debug.
+Step 5: Bounty Polish & Demo (30–60 Min)
+
+README.md (Root; Markdown for GitHub export):
+
+sql_more
+
+# GreenStake: Nexus-Powered Sustainable DEX
+
+## Overview
+Community renewable energy sharing: Stake needs privately (ZKPs), forecast with AI, trade cross-chain via Nexus, settle in PYUSD. Reduces grid waste 20% (simulated).
+
+## Bounty Qualifications
+- **Avail Nexus ($9.5K)**: Uses nexus-core/widgets for Bridge & Execute (cross-chain intents). Demo: Stake on Sepolia, execute on Avail testnet.
+- **PYUSD ($10K)**: PYUSD settlements in executeTrade(). Real-world payments for energy.
+- **Blockscout Autoscout ($3.5K)**: Explorer embed; deployed instance: [your-url.cloud.blockscout.com]. Request credits: Discord #autoscout.
+- **Whitepaper**: [IPFS link or PDF] – Architecture, impact (CO2 savings via Pyth factors).
+
+## Setup
+1. pnpm install
+2. Add HF_TOKEN & WalletConnect ID in secrets.
+3. Deploy contract: Remix → Sepolia → Update CONTRACT_ADDRESS.
+4. pnpm dev
+
+## Demo Flow
+1. Connect wallet.
+2. AI Forecast (Hugging Face).
+3. ZKP Stake (Semaphore).
+4. Nexus Trade (Bridge to Avail, PYUSD out).
+5. View on Autoscout.
+
+## Impact
+- Sustainability: AI optimizes trades; ZKPs protect privacy.
+- Scalable: L2 + Avail DA for 1000s TPS.
+- Virtus Green Tie-In: Mock carbon offsets (extend with APIs).
+
+Repo: MIT License. Video: [YouTube link].
+Export to GitHub: Replit → Tools > GitHub → Connect & Push (public repo for submission).
+Autoscout Setup: Go to deploy.blockscout.com, create account, request hack credits (Discord #autoscout, mention ETHOnline). Add instance: Chain ID 11155111 (Sepolia), RPC: Alchemy/Infura free, size "Small". Get URL for embed.
+
+Video Demo: Use Replit preview. Record in browser (e.g., Chrome extension like Loom): Walk flow, highlight bounties. 2–4 min.
+
+Step 6: Deploy & Next Steps (10 Min)
+
+Live Deploy: Replit preview for demo; for prod-like, connect to Vercel (Replit → Deploy → Vercel integration).
+Testnet Funds: Sepolia ETH: faucet.alchemy.com. PYUSD: PayPal dev testnet.
+Extensions:
+Full ZKP: Add Semaphore identity gen in frontend (docs: semaphore.appliedzkp.org).
+Virtus Green: If APIs ready, add swap in executeTrade (e.g., call external contract).
+Hardhat Testing: In shell: npx hardhat init → Add test/GreenStake.test.js for bounty.
+Whitepaper: Use Replit's Markdown preview; export PDF via pandoc (shell: npm i -g pandoc).
+Troubleshooting:
+
+Nexus Errors: Check Avail cheat sheet/docs (e.g., init provider correctly).
+AI Token: Hugging Face free tier limits—mock with fixed numbers if needed.
+Wallet: Ensure MetaMask on Sepolia.
+Stuck? Run pnpm ls for deps; share Replit link for collab.
