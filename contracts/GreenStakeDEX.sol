@@ -43,6 +43,12 @@ contract GreenStakeDEX {
         uint256 amount,
         uint256 timestamp
     );
+    
+    event EmergencyWithdrawal(
+        address indexed owner,
+        uint256 amount,
+        uint256 timestamp
+    );
 
     // Structs
     struct Stake {
@@ -248,11 +254,14 @@ contract GreenStakeDEX {
 
     /**
      * @dev Emergency withdraw (owner only)
+     * NOTE: For testnet demo only. Production should use timelock + multisig.
      */
     function emergencyWithdraw() external onlyOwner {
         uint256 balance = address(this).balance;
         (bool success, ) = owner.call{value: balance}("");
         require(success, "Emergency withdrawal failed");
+        
+        emit EmergencyWithdrawal(owner, balance, block.timestamp);
     }
 
     receive() external payable {}
