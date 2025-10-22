@@ -8,8 +8,8 @@
  * 4. Restart the app
  */
 
-// UPDATE THIS with your deployed contract address from Remix
-export const CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000'; // REPLACE AFTER DEPLOYMENT
+// Deployed GreenStakeDEX contract on Sepolia testnet
+export const CONTRACT_ADDRESS = '0x92a110B7a64c5A692D1E1CDd5494E03eCa598F57';
 
 // Mock PYUSD on Sepolia testnet
 export const PYUSD_TESTNET = '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9'; // Real PYUSD Sepolia address

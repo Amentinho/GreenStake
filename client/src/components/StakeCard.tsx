@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Loader2, Lock } from "lucide-react";
+import { Shield, Loader2, Lock, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseEther } from "viem";
+import { CONTRACT_ADDRESS, CONTRACT_ABI, MIN_STAKE_WEI } from "@/lib/constants";
 
 interface StakeCardProps {
   walletAddress: string;
@@ -15,9 +18,72 @@ interface StakeCardProps {
 }
 
 export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: StakeCardProps) {
-  const [amount, setAmount] = useState("100");
-  const [isStaking, setIsStaking] = useState(false);
+  const [amount, setAmount] = useState("0.01");
   const { toast } = useToast();
+  
+  const { data: hash, writeContract, isPending: isWriting, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const isStaking = isWriting || isConfirming;
+
+  // Handle successful transaction
+  useEffect(() => {
+    if (isConfirmed && hash) {
+      handleTransactionSuccess(hash);
+    }
+  }, [isConfirmed, hash]);
+
+  // Handle write errors
+  useEffect(() => {
+    if (writeError) {
+      toast({
+        title: "Transaction Failed",
+        description: writeError.message.includes("user rejected") 
+          ? "Transaction was rejected"
+          : "Failed to submit transaction. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [writeError]);
+
+  const handleTransactionSuccess = async (txHash: string) => {
+    try {
+      // Save stake record to backend
+      await api.createStake({
+        walletAddress,
+        amount: amount,
+        energyNeed: forecastValue!,
+        status: "confirmed",
+        transactionHash: txHash,
+      });
+
+      toast({
+        title: "Stake Successful! 🎉",
+        description: (
+          <div className="space-y-2">
+            <p>Staked {amount} ETH with ZKP protection</p>
+            <a
+              href={`https://sepolia.etherscan.io/tx/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              View on Etherscan <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        ),
+      });
+
+      // Invalidate queries to refresh activity history and contract balances
+      queryClient.invalidateQueries({ queryKey: ['/api/stake', walletAddress] });
+      
+      onStakeComplete();
+    } catch (error) {
+      console.error("Failed to save stake:", error);
+    }
+  };
 
   const handleStake = async () => {
     if (!forecastValue) {
@@ -30,52 +96,31 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
     }
 
     const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount < 10) {
+    if (isNaN(numAmount) || numAmount < 0.01) {
       toast({
         title: "Invalid Amount",
-        description: "Minimum stake is 10 ETK",
+        description: "Minimum stake is 0.01 ETH",
         variant: "destructive",
       });
       return;
     }
 
-    setIsStaking(true);
-    
     try {
-      // Create initial stake record with pending status
-      const stake = await api.createStake({
-        walletAddress,
-        amount: amount,
-        energyNeed: forecastValue,
-        status: "pending",
+      // Call the smart contract stake function
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: 'stake',
+        args: [BigInt(forecastValue)],
+        value: parseEther(amount),
       });
-
-      // Simulate blockchain confirmation delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Update stake status to confirmed
-      await api.updateStake(stake.id, {
-        status: "confirmed",
-        transactionHash: `0x${Math.random().toString(16).slice(2, 42)}`, // Mock tx hash
-      });
-
-      toast({
-        title: "Stake Successful",
-        description: `Staked ${amount} ETK anonymously with ZKP`,
-      });
-      
-      // Invalidate queries to refresh activity history
-      queryClient.invalidateQueries({ queryKey: ['/api/stake', walletAddress] });
-      
-      onStakeComplete();
     } catch (error) {
+      console.error("Stake error:", error);
       toast({
         title: "Stake Failed",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
-    } finally {
-      setIsStaking(false);
     }
   };
 
@@ -96,18 +141,19 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="stake-amount">Amount (ETK)</Label>
+          <Label htmlFor="stake-amount">Amount (ETH)</Label>
           <Input
             id="stake-amount"
             type="number"
+            step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="100"
+            placeholder="0.01"
             disabled={isDisabled}
             data-testid="input-stake-amount"
           />
           <p className="text-xs text-muted-foreground">
-            Minimum: 10 ETK
+            Minimum: 0.01 ETH on Sepolia testnet
           </p>
         </div>
 
@@ -119,7 +165,7 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Stake Amount</span>
-              <span className="font-mono font-semibold">{amount} ETK</span>
+              <span className="font-mono font-semibold">{amount} ETH</span>
             </div>
           </div>
         )}
@@ -127,7 +173,7 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
         <div className="flex items-start gap-2 rounded-lg border bg-card p-3">
           <Lock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Your stake is protected by zero-knowledge proofs using Semaphore protocol. 
+            Your stake is recorded on-chain with zero-knowledge proof protection. 
             Your identity remains private while proving your energy commitment.
           </p>
         </div>
@@ -138,10 +184,15 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
           disabled={isDisabled}
           data-testid="button-stake"
         >
-          {isStaking ? (
+          {isWriting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Staking...
+              Confirm in Wallet...
+            </>
+          ) : isConfirming ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Confirming on Sepolia...
             </>
           ) : (
             <>
