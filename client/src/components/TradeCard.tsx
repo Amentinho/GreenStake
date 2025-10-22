@@ -49,6 +49,14 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     hash: tradeHash,
   });
 
+  // Debug logging
+  useEffect(() => {
+    console.log('Price update hash:', priceUpdateHash);
+    console.log('isPriceUpdating:', isPriceUpdating);
+    console.log('isPriceUpdateConfirming:', isPriceUpdateConfirming);
+    console.log('isPriceUpdateConfirmed:', isPriceUpdateConfirmed);
+  }, [priceUpdateHash, isPriceUpdating, isPriceUpdateConfirming, isPriceUpdateConfirmed]);
+
   // Get user's staked balance (poll for real-time updates)
   const { data: stakedBalance } = useReadContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
@@ -93,6 +101,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   // Handle price update confirmation - automatically proceed to trade
   useEffect(() => {
     if (isPriceUpdateConfirmed && priceUpdateHash) {
+      console.log('Price update confirmed! Hash:', priceUpdateHash);
       toast({
         title: "Price Updated ✓",
         description: "Now executing your trade with fresh oracle price...",
@@ -100,6 +109,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       
       // Automatically execute trade after price update confirms
       setTimeout(() => {
+        console.log('Executing trade transaction...');
         executeTradeTx();
       }, 1000);
     }
@@ -275,6 +285,8 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       const updateFee = BigInt(1); // 1 wei - minimal fee
       
       console.log('Calling updatePriceFeeds with fee:', updateFee.toString());
+      console.log('Contract address:', CONTRACT_ADDRESS);
+      console.log('Price update data length:', priceUpdateData.length);
       
       writePriceUpdate({
         address: CONTRACT_ADDRESS as `0x${string}`,
@@ -282,7 +294,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         functionName: 'updatePriceFeeds',
         args: [priceUpdateData as `0x${string}`[]],
         value: updateFee,
-        gas: BigInt(300000), // Set reasonable gas limit for Pyth update
+        gas: BigInt(1000000), // Increased gas limit for Pyth update (1M)
       });
       
       // Note: The trade execution (TX 2/2) will automatically trigger
