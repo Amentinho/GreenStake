@@ -47,6 +47,17 @@ export const SEPOLIA_CHAIN_ID = 11155111;
 // Minimum stake amount (0.01 ETH in wei)
 export const MIN_STAKE_WEI = "10000000000000000"; // 0.01 ETH
 
+// Pyth contract ABI for fee calculation
+export const PYTH_ABI = [
+  {
+    "inputs": [{ "internalType": "bytes[]", "name": "updateData", "type": "bytes[]" }],
+    "name": "getUpdateFee",
+    "outputs": [{ "internalType": "uint256", "name": "feeAmount", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const;
+
 // Contract ABI - Only the functions we need
 export const CONTRACT_ABI = [
   {

@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther, formatUnits } from "viem";
-import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID } from "@/lib/constants";
+import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID, PYTH_CONTRACT_ADDRESS, PYTH_ABI } from "@/lib/constants";
 import { EvmPriceServiceConnection } from '@pythnetwork/pyth-evm-js';
 
 interface TradeCardProps {
@@ -115,11 +115,17 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   // Handle errors
   useEffect(() => {
     if (priceUpdateError) {
+      console.error("Price update error:", priceUpdateError);
+      
+      const errorMessage = priceUpdateError.message || String(priceUpdateError);
+      
       toast({
         title: "Price Update Failed",
-        description: priceUpdateError.message.includes("user rejected") 
-          ? "Transaction was rejected"
-          : "Failed to update price. Please try again.",
+        description: errorMessage.includes("user rejected") || errorMessage.includes("User rejected")
+          ? "You rejected the transaction"
+          : errorMessage.includes("insufficient funds")
+          ? "Insufficient ETH for update fee (~0.002 ETH needed)"
+          : `Error: ${errorMessage.substring(0, 100)}`,
         variant: "destructive",
       });
       setTradeStatus('idle');
@@ -254,6 +260,8 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
 
       const pythConnection = new EvmPriceServiceConnection('https://hermes.pyth.network');
       const priceUpdateData = await pythConnection.getPriceFeedsUpdateData([ETH_USD_PRICE_ID]);
+      
+      console.log('Pyth price update data:', priceUpdateData);
 
       // Step 2: Update price feeds on-chain (small fee required)
       setTradeStatus('updating-price');
@@ -262,20 +270,24 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         description: "Submitting price update to contract (TX 1/2)",
       });
 
-      // Note: In production, calculate the exact update fee from the contract
-      // For now, we send 0.001 ETH which is typically sufficient
+      // Use a reasonable fee for Sepolia testnet
+      // Pyth typically requires ~0.0001-0.001 ETH on testnets
+      const updateFee = parseEther("0.002"); // Increased to 0.002 ETH to ensure sufficient fee
+      
+      console.log('Calling updatePriceFeeds with fee:', updateFee.toString());
+      
       writePriceUpdate({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: CONTRACT_ABI,
         functionName: 'updatePriceFeeds',
         args: [priceUpdateData as `0x${string}`[]],
-        value: parseEther("0.001"), // Fee for Pyth price update
+        value: updateFee,
       });
       
       // Note: The trade execution (TX 2/2) will automatically trigger
       // after the price update confirms (see useEffect above)
     } catch (error) {
-      console.error("Trade error:", error);
+      console.error("Trade error details:", error);
       toast({
         title: "Trade Failed",
         description: error instanceof Error ? error.message : "Please try again",
