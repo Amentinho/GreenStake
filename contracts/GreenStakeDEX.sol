@@ -3,143 +3,257 @@ pragma solidity ^0.8.20;
 
 /**
  * @title GreenStakeDEX
- * @notice Decentralized Energy Exchange with ZKP Privacy and Cross-Chain Support
- * @dev This contract enables:
- *   - Anonymous energy need staking via zero-knowledge proofs (Semaphore)
- *   - Cross-chain energy trading via Avail Nexus
- *   - PYUSD stablecoin settlements
+ * @dev Decentralized energy exchange for sustainable energy trading
+ * Simplified version for immediate deployment - works with Rabby/MetaMask on Sepolia
  * 
- * Deploy Instructions:
+ * DEPLOYMENT:
  * 1. Open https://remix.ethereum.org/
- * 2. Create new file: GreenStakeDEX.sol
- * 3. Paste this code
- * 4. Compile with Solidity 0.8.20+
- * 5. Deploy to Sepolia testnet with PYUSD address
- * 6. Copy deployed contract address to client/src/lib/constants.ts
+ * 2. Compile with Solidity 0.8.20+
+ * 3. Deploy to Sepolia testnet (no constructor parameters needed)
+ * 4. Copy deployed address to client/src/lib/constants.ts: CONTRACT_ADDRESS
  */
 
-// Simplified ERC20 interface for PYUSD
-interface IERC20 {
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
-
 contract GreenStakeDEX {
-    
-    // State variables
-    address public pyusdToken;
-    
-    struct Stake {
-        uint256 amount;      // ETK staked
-        uint256 energyNeed;  // kWh required
-        uint256 timestamp;
-    }
-    
-    mapping(address => Stake) public stakes;
-    mapping(uint256 => bool) public usedNullifiers; // Prevent double-spending in ZKP
-    
     // Events
-    event Staked(address indexed user, uint256 amount, uint256 energyNeed);
-    event TradeExecuted(address indexed user, uint256 energyAmount, uint256 pyusdAmount);
-    
-    constructor(address _pyusd) {
-        pyusdToken = _pyusd;
-    }
-    
-    /**
-     * @notice Stake energy needs with zero-knowledge proof
-     * @dev In production, verify the ZKP proof using Semaphore verifier
-     * @param groupId Semaphore group identifier
-     * @param merkleProofRoot Merkle tree root for anonymity set
-     * @param signal Encoded energy need (private)
-     * @param nullifierHash Prevents double-staking
-     * @param externalNullifier Application-specific nullifier
-     * @param amount ETK tokens to stake
-     */
-    function stakeWithZKP(
-        uint256 groupId,
-        bytes32 merkleProofRoot,
-        uint256 signal,
-        uint256 nullifierHash,
-        uint256 externalNullifier,
-        uint256 amount
-    ) external {
-        require(amount > 0, "Amount must be positive");
-        require(!usedNullifiers[nullifierHash], "Nullifier already used");
-        
-        // In production: verify ZKP proof here using Semaphore contract
-        // ISemaphoreVerifier(verifier).verifyProof(merkleProofRoot, signal, nullifierHash, ...)
-        
-        // Mark nullifier as used
-        usedNullifiers[nullifierHash] = true;
-        
-        // Store stake (in production, transfer ETK tokens)
-        stakes[msg.sender] = Stake({
-            amount: amount,
-            energyNeed: uint256(signal), // Signal encodes energy need
-            timestamp: block.timestamp
-        });
-        
-        emit Staked(msg.sender, amount, uint256(signal));
-    }
-    
-    /**
-     * @notice Execute cross-chain energy trade and settle in PYUSD
-     * @dev Called after Avail Nexus bridges tokens from Ethereum to Avail
-     * @param energyAmount kWh being traded
-     * @param pyusdRecipient Address to receive PYUSD settlement
-     */
-    function executeTrade(
-        uint256 energyAmount,
-        address pyusdRecipient
-    ) external {
-        Stake memory userStake = stakes[msg.sender];
-        require(userStake.amount > 0, "No stake found");
-        require(energyAmount <= userStake.energyNeed, "Exceeds energy need");
-        
-        // Calculate PYUSD settlement (1 kWh = 1 PYUSD for demo)
-        uint256 pyusdAmount = energyAmount * 1e6; // PYUSD has 6 decimals
-        
-        // Transfer PYUSD settlement (in production, ensure contract has PYUSD)
-        // IERC20(pyusdToken).transfer(pyusdRecipient, pyusdAmount);
-        
-        // Update stake
-        stakes[msg.sender].energyNeed -= energyAmount;
-        
-        emit TradeExecuted(msg.sender, energyAmount, pyusdAmount);
-    }
-    
-    /**
-     * @notice Get stake details for a user
-     */
-    function getStake(address user) external view returns (
+    event Staked(
+        address indexed user,
         uint256 amount,
         uint256 energyNeed,
         uint256 timestamp
-    ) {
-        Stake memory stake = stakes[user];
-        return (stake.amount, stake.energyNeed, stake.timestamp);
-    }
-}
+    );
+    
+    event TradeExecuted(
+        address indexed user,
+        string fromChain,
+        string toChain,
+        uint256 etkAmount,
+        uint256 pyusdAmount,
+        uint256 timestamp
+    );
+    
+    event TradeSettled(
+        address indexed user,
+        address indexed settlementAddress,
+        uint256 amount,
+        uint256 timestamp
+    );
+    
+    event Withdrawn(
+        address indexed user,
+        uint256 amount,
+        uint256 timestamp
+    );
 
-/**
- * DEPLOYMENT NOTES:
- * 
- * 1. Get PYUSD Sepolia address from: https://developers.paxos.com/docs/pyusd
- *    Or use mock: 0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9
- * 
- * 2. Deploy with constructor parameter: _pyusd = PYUSD_ADDRESS
- * 
- * 3. For full ZKP integration:
- *    - Deploy Semaphore verifier contract
- *    - Generate group off-chain: npx @semaphore-protocol/cli group create
- *    - Add verifier address to contract
- * 
- * 4. For Avail Nexus integration:
- *    - Contract address becomes tokenIn for Nexus bridgeAndExecute
- *    - executeTrade is called on destination chain (Avail)
- * 
- * 5. Verify on Blockscout:
- *    https://eth-sepolia.blockscout.com/
- */
+    // Structs
+    struct Stake {
+        address user;
+        uint256 amount;
+        uint256 energyNeed;
+        uint256 timestamp;
+        bool active;
+    }
+    
+    struct Trade {
+        address user;
+        string fromChain;
+        string toChain;
+        uint256 etkAmount;
+        uint256 pyusdAmount;
+        uint256 timestamp;
+        bool completed;
+    }
+
+    // State variables
+    mapping(address => Stake[]) public userStakes;
+    mapping(address => Trade[]) public userTrades;
+    mapping(address => uint256) public totalStaked;
+    
+    uint256 public totalValueLocked;
+    uint256 public totalStakesCount;
+    uint256 public totalTradesCount;
+    
+    address public owner;
+    
+    // Minimum stake amount (0.01 ETH)
+    uint256 public constant MIN_STAKE = 0.01 ether;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    /**
+     * @dev Stake ETH with energy need commitment
+     * @param energyNeed Predicted energy consumption in kWh
+     */
+    function stake(uint256 energyNeed) external payable {
+        require(msg.value >= MIN_STAKE, "Minimum stake is 0.01 ETH");
+        require(energyNeed > 0, "Energy need must be greater than 0");
+        
+        Stake memory newStake = Stake({
+            user: msg.sender,
+            amount: msg.value,
+            energyNeed: energyNeed,
+            timestamp: block.timestamp,
+            active: true
+        });
+        
+        userStakes[msg.sender].push(newStake);
+        totalStaked[msg.sender] += msg.value;
+        totalValueLocked += msg.value;
+        totalStakesCount++;
+        
+        emit Staked(msg.sender, msg.value, energyNeed, block.timestamp);
+    }
+
+    /**
+     * @dev Execute cross-chain energy trade - consumes staked balance
+     * @param fromChain Source blockchain identifier (e.g., "ethereum-sepolia")
+     * @param toChain Destination blockchain identifier (e.g., "avail-testnet")
+     * @param etkAmount Amount of ETK to trade (in wei)
+     * @param pyusdAmount PYUSD settlement amount
+     */
+    function executeTrade(
+        string memory fromChain,
+        string memory toChain,
+        uint256 etkAmount,
+        uint256 pyusdAmount
+    ) external {
+        require(totalStaked[msg.sender] >= etkAmount, "Insufficient staked balance");
+        require(etkAmount > 0, "Trade amount must be greater than 0");
+        
+        // Deduct from total staked balance and TVL
+        totalStaked[msg.sender] -= etkAmount;
+        totalValueLocked -= etkAmount;
+        
+        // Mark stakes as consumed (deactivate oldest stakes first)
+        uint256 remainingToConsume = etkAmount;
+        Stake[] storage stakes = userStakes[msg.sender];
+        
+        for (uint256 i = 0; i < stakes.length && remainingToConsume > 0; i++) {
+            if (stakes[i].active) {
+                if (stakes[i].amount <= remainingToConsume) {
+                    // Fully consume this stake
+                    remainingToConsume -= stakes[i].amount;
+                    stakes[i].active = false;
+                } else {
+                    // Partially consume this stake
+                    stakes[i].amount -= remainingToConsume;
+                    remainingToConsume = 0;
+                }
+            }
+        }
+        
+        Trade memory newTrade = Trade({
+            user: msg.sender,
+            fromChain: fromChain,
+            toChain: toChain,
+            etkAmount: etkAmount,
+            pyusdAmount: pyusdAmount,
+            timestamp: block.timestamp,
+            completed: true
+        });
+        
+        userTrades[msg.sender].push(newTrade);
+        totalTradesCount++;
+        
+        // Transfer consumed ETH to owner for cross-chain settlement
+        // In production: owner bridges to Avail and settles in PYUSD
+        (bool success, ) = owner.call{value: etkAmount}("");
+        require(success, "Settlement transfer failed");
+        
+        emit TradeExecuted(
+            msg.sender,
+            fromChain,
+            toChain,
+            etkAmount,
+            pyusdAmount,
+            block.timestamp
+        );
+        
+        emit TradeSettled(msg.sender, owner, etkAmount, block.timestamp);
+    }
+
+    /**
+     * @dev Withdraw staked tokens - marks stakes as inactive
+     * @param amount Amount to withdraw in wei
+     */
+    function withdraw(uint256 amount) external {
+        require(totalStaked[msg.sender] >= amount, "Insufficient staked balance");
+        require(amount > 0, "Withdrawal amount must be greater than 0");
+        
+        // Deduct from totals
+        totalStaked[msg.sender] -= amount;
+        totalValueLocked -= amount;
+        
+        // Mark stakes as inactive (withdraw from oldest stakes first)
+        uint256 remainingToWithdraw = amount;
+        Stake[] storage stakes = userStakes[msg.sender];
+        
+        for (uint256 i = 0; i < stakes.length && remainingToWithdraw > 0; i++) {
+            if (stakes[i].active) {
+                if (stakes[i].amount <= remainingToWithdraw) {
+                    // Fully withdraw this stake
+                    remainingToWithdraw -= stakes[i].amount;
+                    stakes[i].active = false;
+                } else {
+                    // Partially withdraw this stake
+                    stakes[i].amount -= remainingToWithdraw;
+                    remainingToWithdraw = 0;
+                }
+            }
+        }
+        
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success, "Withdrawal failed");
+        
+        emit Withdrawn(msg.sender, amount, block.timestamp);
+    }
+
+    /**
+     * @dev Get user's stake history
+     */
+    function getUserStakes(address user) external view returns (Stake[] memory) {
+        return userStakes[user];
+    }
+
+    /**
+     * @dev Get user's trade history
+     */
+    function getUserTrades(address user) external view returns (Trade[] memory) {
+        return userTrades[user];
+    }
+
+    /**
+     * @dev Get global platform stats
+     */
+    function getStats() external view returns (
+        uint256 tvl,
+        uint256 stakesCount,
+        uint256 tradesCount
+    ) {
+        return (totalValueLocked, totalStakesCount, totalTradesCount);
+    }
+
+    /**
+     * @dev Get user's active stake balance
+     */
+    function getActiveStakeBalance(address user) external view returns (uint256) {
+        return totalStaked[user];
+    }
+
+    /**
+     * @dev Emergency withdraw (owner only)
+     */
+    function emergencyWithdraw() external onlyOwner {
+        uint256 balance = address(this).balance;
+        (bool success, ) = owner.call{value: balance}("");
+        require(success, "Emergency withdrawal failed");
+    }
+
+    receive() external payable {}
+}
