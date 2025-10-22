@@ -1,0 +1,80 @@
+Build on our existing setup (nexus-vite-template fork). Pyth is EVM-native—no new deps beyond ethers.
+
+Contract Update: contracts/GreenStakeDEX.sol (Edit in Replit; recompile in Remix).
+
+Add Pyth imports/address (Sepolia: From docs.pyth.network/price-feeds/contract-addresses/evm).
+Modify executeTrade() to pull price (e.g., electricity/USD via feed ID).
+solidity
+
+// Add to imports
+import "@pyth-network/pyth-sdk-solidity/IPyth.sol";
+import "@pyth-network/pyth-sdk-solidity/PythStructs.sol";
+
+contract GreenStakeDEX is ReentrancyGuard, Semaphore, IPyth {  // Inherit Pyth
+    IPyth public pyth;
+    bytes32 public priceFeedId = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;  // Mock electricity/USD ID (use real from Pyth feeds)
+
+    constructor(address _pyusd, address _pyth) Semaphore(300) {
+        energyToken = new EnergyToken();
+        pyusd = _pyusd;
+        pyth = IPyth(_pyth);  // Sepolia Pyth: 0x... (from docs)
+    }
+
+    // Updated Trade: Pull Pyth price
+    function executeTrade(uint256 energyAmount, address pyusdRecipient) external nonReentrant {
+        energyToken.transferFrom(msg.sender, address(this), energyAmount);
+        
+        // Pull latest price (call updatePriceFeeds off-chain first)
+        PythStructs.Price memory price = pyth.getPriceNoOlderThan(priceFeedId, 60);  // 60s freshness
+        require(price.price > 0, "Invalid Pyth price");
+        uint256 rate = uint256(int256(price.price)) * energyAmount / (10 ** uint256(int256(price.expo)));  // e.g., $0.12/kWh
+        uint256 pyusdOut = rate;  // Adjust for decimals
+
+        IERC20(pyusd).transfer(pyusdRecipient, pyusdOut);
+        emit TradeExecuted(energyAmount, pyusdOut);
+    }
+
+    // Off-chain: Update feeds (call from frontend or keeper)
+    function updatePriceFeeds(bytes[] calldata priceUpdateData) external {
+        pyth.updatePriceFeeds(priceUpdateData);
+    }
+Deploy: Remix → Compile → Deploy to Sepolia (update CONTRACT_ADDRESS in App.tsx). Verify on Autoscout.
+Frontend Update: src/App.tsx (Add Pyth fetch/update before trade).
+
+Install: pnpm add @pythnetwork/client (JS SDK for Hermes pulls).
+tsx
+
+// In stakeAndTrade() – before contract.executeTrade
+import { Pyth } from '@pythnetwork/client';  // Off-chain pull
+
+// Add to function:
+const pyth = new Pyth({ /* Sepolia config from docs */ });
+const priceUpdateData = await pyth.getPriceUpdateData([priceFeedId]);  // Fetch from Hermes
+const updateTx = await contract.updatePriceFeeds(priceUpdateData);  // Update on-chain
+await updateTx.wait();
+console.log('Pyth price pulled – Trade at live rate!');
+
+// Then proceed to executeTrade()
+Off-Chain Pusher Script: scripts/pyth-pusher.js (Test in Replit shell: node scripts/pyth-pusher.js).
+
+javascript
+
+const { ethers } = require('ethers');
+const { Pyth } = require('@pythnetwork/client');
+
+async function pushPrices(contractAddress, privateKey, feedId) {
+  const provider = new ethers.JsonRpcProvider('https://sepolia.infura.io/v3/YOUR_KEY');  // Free Infura
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const contract = new ethers.Contract(contractAddress, GreenStakeABI, wallet);
+  const pyth = new Pyth({ /* config */ });
+  const data = await pyth.getPriceUpdateData([feedId]);
+  const tx = await contract.updatePriceFeeds(data);
+  await tx.wait();
+  console.log('Pyth feeds updated!');
+}
+
+// Run: pushPrices('0x...', 'your_pk', priceFeedId);
+README/Video Add: "Pyth Pull Oracle: Fetches live electricity rates for fair DEX pricing (feed ID: ...). Demo: Trade at $0.12/kWh from Hermes."
+
+PR for Qual: Fork pyth-examples → Add /examples/greenstake-pyth folder with our contract/script + README → PR. (Takes 10 min; required for prizes.)
+
