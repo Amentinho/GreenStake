@@ -9,8 +9,8 @@
  */
 
 // Deployed GreenStakeDEX contract on Sepolia testnet
-// NOTE: Redeploy contract with Pyth integration and update this address
-export const CONTRACT_ADDRESS = '0x92a110B7a64c5A692D1E1CDd5494E03eCa598F57';
+// Deployed with Pyth Network Oracle Integration
+export const CONTRACT_ADDRESS = '0x4B3E4f81B1Bc7B48E3D419860A10a953f3217D26';
 
 // Pyth Network Oracle configuration
 export const PYTH_CONTRACT_ADDRESS = '0x2880aB155794e7179c9eE2e38200202908C17B43'; // Pyth on Sepolia
