@@ -270,9 +270,9 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         description: "Submitting price update to contract (TX 1/2)",
       });
 
-      // Use a reasonable fee for Sepolia testnet
-      // Pyth typically requires ~0.0001-0.001 ETH on testnets
-      const updateFee = parseEther("0.002"); // Increased to 0.002 ETH to ensure sufficient fee
+      // Use fixed fee - Pyth on Sepolia testnet is typically free (0 wei)
+      // but we send a small amount to cover any future changes
+      const updateFee = BigInt(1); // 1 wei - minimal fee
       
       console.log('Calling updatePriceFeeds with fee:', updateFee.toString());
       
@@ -282,6 +282,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         functionName: 'updatePriceFeeds',
         args: [priceUpdateData as `0x${string}`[]],
         value: updateFee,
+        gas: BigInt(300000), // Set reasonable gas limit for Pyth update
       });
       
       // Note: The trade execution (TX 2/2) will automatically trigger
