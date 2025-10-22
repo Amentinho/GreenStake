@@ -26,9 +26,27 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [currentEnergyPrice, setCurrentEnergyPrice] = useState<string>("0");
   const { toast } = useToast();
 
-  const { data: hash, writeContract, isPending: isWriting, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
+  // Separate hooks for price update and trade execution
+  const { 
+    data: priceUpdateHash, 
+    writeContract: writePriceUpdate, 
+    isPending: isPriceUpdating,
+    error: priceUpdateError 
+  } = useWriteContract();
+  
+  const { 
+    data: tradeHash, 
+    writeContract: writeTradeExecution, 
+    isPending: isTradeExecuting,
+    error: tradeError 
+  } = useWriteContract();
+
+  const { isLoading: isPriceUpdateConfirming, isSuccess: isPriceUpdateConfirmed } = useWaitForTransactionReceipt({
+    hash: priceUpdateHash,
+  });
+  
+  const { isLoading: isTradeConfirming, isSuccess: isTradeConfirmed } = useWaitForTransactionReceipt({
+    hash: tradeHash,
   });
 
   // Get user's staked balance (poll for real-time updates)
@@ -70,28 +88,56 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
   }, [energyPriceData, tradeAmount]);
 
-  const isTrading = isWriting || isConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
+  const isTrading = isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
 
-  // Handle successful transaction
+  // Handle price update confirmation - automatically proceed to trade
   useEffect(() => {
-    if (isConfirmed && hash) {
-      handleTransactionSuccess(hash);
-    }
-  }, [isConfirmed, hash]);
-
-  // Handle write errors
-  useEffect(() => {
-    if (writeError) {
+    if (isPriceUpdateConfirmed && priceUpdateHash) {
       toast({
-        title: "Transaction Failed",
-        description: writeError.message.includes("user rejected") 
+        title: "Price Updated ✓",
+        description: "Now executing your trade with fresh oracle price...",
+      });
+      
+      // Automatically execute trade after price update confirms
+      setTimeout(() => {
+        executeTradeTx();
+      }, 1000);
+    }
+  }, [isPriceUpdateConfirmed, priceUpdateHash]);
+
+  // Handle successful trade execution
+  useEffect(() => {
+    if (isTradeConfirmed && tradeHash) {
+      handleTransactionSuccess(tradeHash);
+    }
+  }, [isTradeConfirmed, tradeHash]);
+
+  // Handle errors
+  useEffect(() => {
+    if (priceUpdateError) {
+      toast({
+        title: "Price Update Failed",
+        description: priceUpdateError.message.includes("user rejected") 
           ? "Transaction was rejected"
-          : "Failed to submit transaction. Please try again.",
+          : "Failed to update price. Please try again.",
         variant: "destructive",
       });
       setTradeStatus('idle');
     }
-  }, [writeError]);
+  }, [priceUpdateError]);
+
+  useEffect(() => {
+    if (tradeError) {
+      toast({
+        title: "Trade Failed",
+        description: tradeError.message.includes("user rejected") 
+          ? "Transaction was rejected"
+          : "Failed to execute trade. Please try again.",
+        variant: "destructive",
+      });
+      setTradeStatus('idle');
+    }
+  }, [tradeError]);
 
   const handleTransactionSuccess = async (txHash: string) => {
     try {
@@ -135,6 +181,25 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     } catch (error) {
       console.error("Failed to save trade:", error);
     }
+  };
+
+  // Execute the trade transaction (called after price update confirms)
+  const executeTradeTx = () => {
+    setTradeStatus('executing');
+    
+    const tradeAmountWei = parseEther(tradeAmount);
+    
+    writeTradeExecution({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      abi: CONTRACT_ABI,
+      functionName: 'executeTrade',
+      args: [
+        CHAINS.ETHEREUM_SEPOLIA,
+        CHAINS.AVAIL_TESTNET,
+        tradeAmountWei,
+        BigInt(Math.floor(parseFloat(pyusdAmount) * 1e6)), // PYUSD has 6 decimals
+      ],
+    });
   };
 
   const handleTrade = async () => {
@@ -194,36 +259,21 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       setTradeStatus('updating-price');
       toast({
         title: "Updating Oracle Price...",
-        description: "Submitting price update to contract",
+        description: "Submitting price update to contract (TX 1/2)",
       });
 
       // Note: In production, calculate the exact update fee from the contract
       // For now, we send 0.001 ETH which is typically sufficient
-      const updateTx = await writeContract({
+      writePriceUpdate({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: CONTRACT_ABI,
         functionName: 'updatePriceFeeds',
         args: [priceUpdateData as `0x${string}`[]],
         value: parseEther("0.001"), // Fee for Pyth price update
       });
-
-      // Wait for price update to confirm
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // Step 3: Execute trade with fresh oracle price
-      setTradeStatus('executing');
-
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: 'executeTrade',
-        args: [
-          CHAINS.ETHEREUM_SEPOLIA,
-          CHAINS.AVAIL_TESTNET,
-          tradeAmountWei,
-          BigInt(Math.floor(parseFloat(pyusdAmount) * 1e6)), // PYUSD has 6 decimals
-        ],
-      });
+      
+      // Note: The trade execution (TX 2/2) will automatically trigger
+      // after the price update confirms (see useEffect above)
     } catch (error) {
       console.error("Trade error:", error);
       toast({
@@ -359,20 +409,25 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
               <Loader2 className="h-4 w-4 animate-spin" />
               Fetching Price...
             </>
-          ) : tradeStatus === 'updating-price' ? (
+          ) : tradeStatus === 'updating-price' || isPriceUpdating ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Updating Oracle...
+              Updating Oracle (TX 1/2)...
             </>
-          ) : isWriting ? (
+          ) : isPriceUpdateConfirming ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Confirm in Wallet...
+              Confirming Price Update...
             </>
-          ) : isConfirming ? (
+          ) : isTradeExecuting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Executing Trade...
+              Confirm Trade in Wallet...
+            </>
+          ) : isTradeConfirming ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Executing Trade (TX 2/2)...
             </>
           ) : tradeStatus === 'completed' ? (
             <>
