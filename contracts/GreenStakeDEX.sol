@@ -2,16 +2,31 @@
 pragma solidity ^0.8.20;
 
 /**
- * @title GreenStakeDEX
- * @dev Decentralized energy exchange for sustainable energy trading
- * Simplified version for immediate deployment - works with Rabby/MetaMask on Sepolia
+ * @title GreenStakeDEX with Pyth Network Oracle Integration
+ * @dev Decentralized energy exchange with real-time pricing from Pyth Network
  * 
  * DEPLOYMENT:
  * 1. Open https://remix.ethereum.org/
  * 2. Compile with Solidity 0.8.20+
- * 3. Deploy to Sepolia testnet (no constructor parameters needed)
+ * 3. Deploy to Sepolia testnet - Constructor params:
+ *    - _pythAddress: 0x2880aB155794e7179c9eE2e38200202908C17B43 (Pyth Sepolia)
  * 4. Copy deployed address to client/src/lib/constants.ts: CONTRACT_ADDRESS
  */
+
+// Minimal Pyth interface for price feeds
+interface IPyth {
+    struct Price {
+        int64 price;
+        uint64 conf;
+        int32 expo;
+        uint publishTime;
+    }
+    
+    function getPrice(bytes32 id) external view returns (Price memory price);
+    function getPriceNoOlderThan(bytes32 id, uint age) external view returns (Price memory price);
+    function updatePriceFeeds(bytes[] calldata priceUpdateData) external payable;
+    function getUpdateFee(bytes[] calldata priceUpdateData) external view returns (uint feeAmount);
+}
 
 contract GreenStakeDEX {
     // Events
@@ -28,6 +43,7 @@ contract GreenStakeDEX {
         string toChain,
         uint256 etkAmount,
         uint256 pyusdAmount,
+        uint256 energyPrice,
         uint256 timestamp
     );
     
@@ -43,10 +59,16 @@ contract GreenStakeDEX {
         uint256 amount,
         uint256 timestamp
     );
-    
+
     event EmergencyWithdrawal(
         address indexed owner,
         uint256 amount,
+        uint256 timestamp
+    );
+
+    event PriceUpdated(
+        bytes32 indexed priceId,
+        int64 price,
         uint256 timestamp
     );
 
@@ -80,6 +102,10 @@ contract GreenStakeDEX {
     
     address public owner;
     
+    // Pyth Network integration
+    IPyth public pyth;
+    bytes32 public constant ETH_USD_PRICE_ID = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
+    
     // Minimum stake amount (0.01 ETH)
     uint256 public constant MIN_STAKE = 0.01 ether;
 
@@ -88,8 +114,9 @@ contract GreenStakeDEX {
         _;
     }
 
-    constructor() {
+    constructor(address _pythAddress) {
         owner = msg.sender;
+        pyth = IPyth(_pythAddress);
     }
 
     /**
@@ -117,11 +144,11 @@ contract GreenStakeDEX {
     }
 
     /**
-     * @dev Execute cross-chain energy trade - consumes staked balance
-     * @param fromChain Source blockchain identifier (e.g., "ethereum-sepolia")
-     * @param toChain Destination blockchain identifier (e.g., "avail-testnet")
+     * @dev Execute cross-chain energy trade with Pyth oracle pricing
+     * @param fromChain Source blockchain identifier
+     * @param toChain Destination blockchain identifier
      * @param etkAmount Amount of ETK to trade (in wei)
-     * @param pyusdAmount PYUSD settlement amount
+     * @param pyusdAmount Expected PYUSD settlement amount (slippage check)
      */
     function executeTrade(
         string memory fromChain,
@@ -131,6 +158,23 @@ contract GreenStakeDEX {
     ) external {
         require(totalStaked[msg.sender] >= etkAmount, "Insufficient staked balance");
         require(etkAmount > 0, "Trade amount must be greater than 0");
+        
+        // Fetch latest energy price from Pyth (using ETH/USD as proxy)
+        IPyth.Price memory ethPrice = pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, 60);
+        require(ethPrice.price > 0, "Invalid Pyth price");
+        
+        // Calculate energy rate: ETH/USD price as kWh pricing proxy
+        // In production: use actual electricity price feed when available
+        uint256 energyPriceUSD = uint256(int256(ethPrice.price)) / (10 ** uint256(uint256(int256(-ethPrice.expo))));
+        
+        // Validate PYUSD amount against oracle price (10% slippage tolerance)
+        // Note: PYUSD has 6 decimals, so scale expectedPyusd by 1e6
+        uint256 expectedPyusd = ((etkAmount * energyPriceUSD) / 1e18) * 1e6;
+        require(
+            pyusdAmount >= (expectedPyusd * 90) / 100 && 
+            pyusdAmount <= (expectedPyusd * 110) / 100,
+            "PYUSD amount outside acceptable range"
+        );
         
         // Deduct from total staked balance and TVL
         totalStaked[msg.sender] -= etkAmount;
@@ -143,11 +187,9 @@ contract GreenStakeDEX {
         for (uint256 i = 0; i < stakes.length && remainingToConsume > 0; i++) {
             if (stakes[i].active) {
                 if (stakes[i].amount <= remainingToConsume) {
-                    // Fully consume this stake
                     remainingToConsume -= stakes[i].amount;
                     stakes[i].active = false;
                 } else {
-                    // Partially consume this stake
                     stakes[i].amount -= remainingToConsume;
                     remainingToConsume = 0;
                 }
@@ -168,7 +210,6 @@ contract GreenStakeDEX {
         totalTradesCount++;
         
         // Transfer consumed ETH to owner for cross-chain settlement
-        // In production: owner bridges to Avail and settles in PYUSD
         (bool success, ) = owner.call{value: etkAmount}("");
         require(success, "Settlement transfer failed");
         
@@ -178,10 +219,34 @@ contract GreenStakeDEX {
             toChain,
             etkAmount,
             pyusdAmount,
+            energyPriceUSD,
             block.timestamp
         );
         
         emit TradeSettled(msg.sender, owner, etkAmount, block.timestamp);
+    }
+
+    /**
+     * @dev Update Pyth price feeds (call before executeTrade for fresh prices)
+     * @param priceUpdateData Price update data from Hermes API
+     */
+    function updatePriceFeeds(bytes[] calldata priceUpdateData) external payable {
+        uint fee = pyth.getUpdateFee(priceUpdateData);
+        require(msg.value >= fee, "Insufficient fee for price update");
+        
+        pyth.updatePriceFeeds{value: fee}(priceUpdateData);
+        
+        // Get updated price for event
+        IPyth.Price memory ethPrice = pyth.getPrice(ETH_USD_PRICE_ID);
+        emit PriceUpdated(ETH_USD_PRICE_ID, ethPrice.price, block.timestamp);
+    }
+
+    /**
+     * @dev Get current ETH/USD price from Pyth (proxy for energy pricing)
+     */
+    function getCurrentEnergyPrice() external view returns (int64 price, int32 expo, uint publishTime) {
+        IPyth.Price memory ethPrice = pyth.getPrice(ETH_USD_PRICE_ID);
+        return (ethPrice.price, ethPrice.expo, ethPrice.publishTime);
     }
 
     /**
@@ -192,22 +257,18 @@ contract GreenStakeDEX {
         require(totalStaked[msg.sender] >= amount, "Insufficient staked balance");
         require(amount > 0, "Withdrawal amount must be greater than 0");
         
-        // Deduct from totals
         totalStaked[msg.sender] -= amount;
         totalValueLocked -= amount;
         
-        // Mark stakes as inactive (withdraw from oldest stakes first)
         uint256 remainingToWithdraw = amount;
         Stake[] storage stakes = userStakes[msg.sender];
         
         for (uint256 i = 0; i < stakes.length && remainingToWithdraw > 0; i++) {
             if (stakes[i].active) {
                 if (stakes[i].amount <= remainingToWithdraw) {
-                    // Fully withdraw this stake
                     remainingToWithdraw -= stakes[i].amount;
                     stakes[i].active = false;
                 } else {
-                    // Partially withdraw this stake
                     stakes[i].amount -= remainingToWithdraw;
                     remainingToWithdraw = 0;
                 }

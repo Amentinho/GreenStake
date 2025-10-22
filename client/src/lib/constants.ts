@@ -9,7 +9,12 @@
  */
 
 // Deployed GreenStakeDEX contract on Sepolia testnet
+// NOTE: Redeploy contract with Pyth integration and update this address
 export const CONTRACT_ADDRESS = '0x92a110B7a64c5A692D1E1CDd5494E03eCa598F57';
+
+// Pyth Network Oracle configuration
+export const PYTH_CONTRACT_ADDRESS = '0x2880aB155794e7179c9eE2e38200202908C17B43'; // Pyth on Sepolia
+export const ETH_USD_PRICE_ID = '0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace'; // ETH/USD feed (proxy for energy pricing)
 
 // Mock PYUSD on Sepolia testnet
 export const PYUSD_TESTNET = '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9'; // Real PYUSD Sepolia address
@@ -131,6 +136,24 @@ export const CONTRACT_ABI = [
     "type": "function"
   },
   {
+    "inputs": [{ "internalType": "bytes[]", "name": "priceUpdateData", "type": "bytes[]" }],
+    "name": "updatePriceFeeds",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getCurrentEnergyPrice",
+    "outputs": [
+      { "internalType": "int64", "name": "price", "type": "int64" },
+      { "internalType": "int32", "name": "expo", "type": "int32" },
+      { "internalType": "uint256", "name": "publishTime", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "anonymous": false,
     "inputs": [
       { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
@@ -149,6 +172,7 @@ export const CONTRACT_ABI = [
       { "indexed": false, "internalType": "string", "name": "toChain", "type": "string" },
       { "indexed": false, "internalType": "uint256", "name": "etkAmount", "type": "uint256" },
       { "indexed": false, "internalType": "uint256", "name": "pyusdAmount", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "energyPrice", "type": "uint256" },
       { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
     ],
     "name": "TradeExecuted",

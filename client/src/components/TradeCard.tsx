@@ -3,26 +3,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink } from "lucide-react";
+import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
-import { parseEther } from "viem";
-import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS } from "@/lib/constants";
+import { parseEther, formatUnits } from "viem";
+import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID } from "@/lib/constants";
+import { EvmPriceServiceConnection } from '@pythnetwork/pyth-evm-js';
 
 interface TradeCardProps {
   walletAddress: string;
   stakeCompleted: boolean;
 }
 
-type TradeStatus = 'idle' | 'executing' | 'completed';
+type TradeStatus = 'idle' | 'fetching-price' | 'updating-price' | 'executing' | 'completed';
 
 export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [tradeStatus, setTradeStatus] = useState<TradeStatus>('idle');
   const [tradeAmount, setTradeAmount] = useState("0.01");
-  const [pyusdAmount, setPyusdAmount] = useState("10");
+  const [pyusdAmount, setPyusdAmount] = useState("0");
+  const [currentEnergyPrice, setCurrentEnergyPrice] = useState<string>("0");
   const { toast } = useToast();
 
   const { data: hash, writeContract, isPending: isWriting, error: writeError } = useWriteContract();
@@ -41,7 +42,35 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     },
   });
 
-  const isTrading = isWriting || isConfirming;
+  // Get current energy price from contract
+  const { data: energyPriceData } = useReadContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: CONTRACT_ABI,
+    functionName: 'getCurrentEnergyPrice',
+    query: {
+      refetchInterval: 10000, // Refresh every 10 seconds
+    },
+  });
+
+  // Update energy price display when data changes
+  useEffect(() => {
+    if (energyPriceData && Array.isArray(energyPriceData)) {
+      const [price, expo] = energyPriceData;
+      if (price && expo !== undefined) {
+        const priceNumber = Number(price);
+        const expoNumber = Number(expo);
+        const actualPrice = priceNumber / Math.pow(10, -expoNumber);
+        setCurrentEnergyPrice(actualPrice.toFixed(2));
+        
+        // Auto-calculate PYUSD amount based on ETH price
+        const tradeEth = parseFloat(tradeAmount) || 0;
+        const estimatedPyusd = (tradeEth * actualPrice).toFixed(2);
+        setPyusdAmount(estimatedPyusd);
+      }
+    }
+  }, [energyPriceData, tradeAmount]);
+
+  const isTrading = isWriting || isConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
 
   // Handle successful transaction
   useEffect(() => {
@@ -80,10 +109,10 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       });
 
       toast({
-        title: "Trade Executed! 🎉",
+        title: "Trade Executed with Pyth Oracle! 🎉",
         description: (
           <div className="space-y-2">
-            <p>Cross-chain trade completed via Nexus</p>
+            <p>Traded at live market price: ${currentEnergyPrice}/ETH</p>
             <a
               href={`https://sepolia.etherscan.io/tx/${txHash}`}
               target="_blank"
@@ -151,9 +180,39 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
 
     try {
+      // Step 1: Fetch latest Pyth price update data
+      setTradeStatus('fetching-price');
+      toast({
+        title: "Fetching Live Price...",
+        description: "Getting latest energy price from Pyth Network",
+      });
+
+      const pythConnection = new EvmPriceServiceConnection('https://hermes.pyth.network');
+      const priceUpdateData = await pythConnection.getPriceFeedsUpdateData([ETH_USD_PRICE_ID]);
+
+      // Step 2: Update price feeds on-chain (small fee required)
+      setTradeStatus('updating-price');
+      toast({
+        title: "Updating Oracle Price...",
+        description: "Submitting price update to contract",
+      });
+
+      // Note: In production, calculate the exact update fee from the contract
+      // For now, we send 0.001 ETH which is typically sufficient
+      const updateTx = await writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: 'updatePriceFeeds',
+        args: [priceUpdateData as `0x${string}`[]],
+        value: parseEther("0.001"), // Fee for Pyth price update
+      });
+
+      // Wait for price update to confirm
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Step 3: Execute trade with fresh oracle price
       setTradeStatus('executing');
 
-      // Call the smart contract executeTrade function
       writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: CONTRACT_ABI,
@@ -188,11 +247,27 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           </div>
           <div>
             <CardTitle>Cross-Chain Trade</CardTitle>
-            <CardDescription>Bridge & execute via Nexus</CardDescription>
+            <CardDescription>Pyth Oracle-powered pricing</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Live price indicator */}
+        {currentEnergyPrice !== "0" && (
+          <div className="rounded-lg border bg-primary/5 p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Live Energy Price</span>
+              </div>
+              <span className="text-lg font-bold text-primary">${currentEnergyPrice}/ETH</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Powered by Pyth Network Oracle
+            </p>
+          </div>
+        )}
+
         {/* Chain visualization */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="rounded-lg border bg-card p-4 text-center">
@@ -250,28 +325,16 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
             <Input
               id="pyusd-amount"
               type="number"
-              step="1"
+              step="0.01"
               value={pyusdAmount}
               onChange={(e) => setPyusdAmount(e.target.value)}
-              placeholder="10"
+              placeholder="Auto-calculated"
               disabled={isDisabled}
               data-testid="input-pyusd-amount"
             />
-          </div>
-        </div>
-
-        {/* Trade summary */}
-        <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">From</span>
-            <span className="font-mono font-semibold">{tradeAmount} ETH</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">To (Settlement)</span>
-            <div className="flex items-center gap-1">
-              <DollarSign className="h-3 w-3 text-chart-3" />
-              <span className="font-mono font-semibold">{pyusdAmount} PYUSD</span>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Auto-calculated from live oracle price
+            </p>
           </div>
         </div>
 
@@ -280,7 +343,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           <div className="flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/5 p-3">
             <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
             <p className="text-sm text-primary font-medium">
-              Trade completed! Settlement processed via Nexus
+              Trade completed at live oracle price!
             </p>
           </div>
         )}
@@ -291,7 +354,17 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           disabled={isDisabled}
           data-testid="button-trade"
         >
-          {isWriting ? (
+          {tradeStatus === 'fetching-price' ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Fetching Price...
+            </>
+          ) : tradeStatus === 'updating-price' ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Updating Oracle...
+            </>
+          ) : isWriting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Confirm in Wallet...
@@ -309,7 +382,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           ) : (
             <>
               <Network className="h-4 w-4" />
-              Execute Cross-Chain Trade
+              Execute with Pyth Oracle
             </>
           )}
         </Button>
