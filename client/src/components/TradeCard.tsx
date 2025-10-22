@@ -218,9 +218,13 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
   };
 
-  // Execute the trade transaction (called after price update confirms)
+  // Execute the trade transaction (called after price update confirms OR directly)
   const executeTradeTx = () => {
     setTradeStatus('executing');
+    toast({
+      title: "Executing Trade...",
+      description: "Please confirm the trade transaction (TX 2/2)",
+    });
     
     const tradeAmountWei = parseEther(tradeAmount);
     
@@ -280,53 +284,15 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
 
     try {
-      // Step 1: Fetch latest Pyth price update data
-      setTradeStatus('fetching-price');
+      // Skip Pyth price update for now - execute trade directly
+      // The contract will use the last known price from previous updates
       toast({
-        title: "Fetching Live Price...",
-        description: "Getting latest energy price from Pyth Network",
-      });
-
-      const pythConnection = new EvmPriceServiceConnection('https://hermes.pyth.network');
-      const fetchedPriceData = await pythConnection.getPriceFeedsUpdateData([ETH_USD_PRICE_ID]);
-      
-      console.log('Pyth price update data:', fetchedPriceData);
-      
-      // Store price data in state to trigger fee query
-      setPriceUpdateData(fetchedPriceData);
-      
-      // Wait a moment for the fee query to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Step 2: Update price feeds on-chain (with exact fee)
-      setTradeStatus('updating-price');
-
-      // Use the exact fee from Pyth contract, or fallback to reasonable amount
-      // Pyth on Sepolia testnet typically requires 0-1 wei, but we'll use 0.001 ETH as safe fallback
-      const updateFee = updateFeeData ? BigInt(updateFeeData as bigint) : parseEther("0.001");
-      
-      console.log('Update fee data:', updateFeeData);
-      console.log('Final update fee to use:', updateFee.toString());
-      
-      toast({
-        title: "Updating Oracle Price...",
-        description: `Submitting price update (Fee: ${Number(updateFee) / 1e18} ETH)`,
-      });
-      console.log('Calling updatePriceFeeds');
-      console.log('Contract address:', CONTRACT_ADDRESS);
-      console.log('Price update data length:', fetchedPriceData.length);
-      
-      writePriceUpdate({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: 'updatePriceFeeds',
-        args: [fetchedPriceData as `0x${string}`[]],
-        value: updateFee,
-        gas: BigInt(1000000), // Increased gas limit for Pyth update (1M)
+        title: "Executing Trade...",
+        description: "Using current oracle price from contract",
       });
       
-      // Note: The trade execution (TX 2/2) will automatically trigger
-      // after the price update confirms (see useEffect above)
+      executeTradeTx();
+      
     } catch (error) {
       console.error("Trade error details:", error);
       toast({
@@ -335,7 +301,6 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         variant: "destructive",
       });
       setTradeStatus('idle');
-      setPriceUpdateData([]); // Reset price data
     }
   };
 
