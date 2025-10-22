@@ -24,6 +24,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [tradeAmount, setTradeAmount] = useState("0.01");
   const [pyusdAmount, setPyusdAmount] = useState("0");
   const [currentEnergyPrice, setCurrentEnergyPrice] = useState<string>("0");
+  const [priceUpdateData, setPriceUpdateData] = useState<string[]>([]);
   const { toast } = useToast();
 
   // Separate hooks for price update and trade execution
@@ -77,6 +78,24 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       refetchInterval: 10000, // Refresh every 10 seconds
     },
   });
+
+  // Get Pyth update fee for the price data
+  const { data: updateFeeData } = useReadContract({
+    address: PYTH_CONTRACT_ADDRESS as `0x${string}`,
+    abi: PYTH_ABI,
+    functionName: 'getUpdateFee',
+    args: priceUpdateData.length > 0 ? [priceUpdateData as `0x${string}`[]] : undefined,
+    query: {
+      enabled: priceUpdateData.length > 0,
+    },
+  });
+
+  // Log the update fee whenever it changes
+  useEffect(() => {
+    if (updateFeeData) {
+      console.log('Pyth update fee data received:', updateFeeData);
+    }
+  }, [updateFeeData]);
 
   // Update energy price display when data changes
   useEffect(() => {
@@ -269,30 +288,39 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       });
 
       const pythConnection = new EvmPriceServiceConnection('https://hermes.pyth.network');
-      const priceUpdateData = await pythConnection.getPriceFeedsUpdateData([ETH_USD_PRICE_ID]);
+      const fetchedPriceData = await pythConnection.getPriceFeedsUpdateData([ETH_USD_PRICE_ID]);
       
-      console.log('Pyth price update data:', priceUpdateData);
+      console.log('Pyth price update data:', fetchedPriceData);
+      
+      // Store price data in state to trigger fee query
+      setPriceUpdateData(fetchedPriceData);
+      
+      // Wait a moment for the fee query to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Step 2: Update price feeds on-chain (small fee required)
+      // Step 2: Update price feeds on-chain (with exact fee)
       setTradeStatus('updating-price');
+
+      // Use the exact fee from Pyth contract, or fallback to reasonable amount
+      // Pyth on Sepolia testnet typically requires 0-1 wei, but we'll use 0.001 ETH as safe fallback
+      const updateFee = updateFeeData ? BigInt(updateFeeData as bigint) : parseEther("0.001");
+      
+      console.log('Update fee data:', updateFeeData);
+      console.log('Final update fee to use:', updateFee.toString());
+      
       toast({
         title: "Updating Oracle Price...",
-        description: "Submitting price update to contract (TX 1/2)",
+        description: `Submitting price update (Fee: ${Number(updateFee) / 1e18} ETH)`,
       });
-
-      // Use fixed fee - Pyth on Sepolia testnet is typically free (0 wei)
-      // but we send a small amount to cover any future changes
-      const updateFee = BigInt(1); // 1 wei - minimal fee
-      
-      console.log('Calling updatePriceFeeds with fee:', updateFee.toString());
+      console.log('Calling updatePriceFeeds');
       console.log('Contract address:', CONTRACT_ADDRESS);
-      console.log('Price update data length:', priceUpdateData.length);
+      console.log('Price update data length:', fetchedPriceData.length);
       
       writePriceUpdate({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: CONTRACT_ABI,
         functionName: 'updatePriceFeeds',
-        args: [priceUpdateData as `0x${string}`[]],
+        args: [fetchedPriceData as `0x${string}`[]],
         value: updateFee,
         gas: BigInt(1000000), // Increased gas limit for Pyth update (1M)
       });
@@ -307,6 +335,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         variant: "destructive",
       });
       setTradeStatus('idle');
+      setPriceUpdateData([]); // Reset price data
     }
   };
 
