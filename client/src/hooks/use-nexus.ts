@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
 
-// Nexus SDK types (package installed: @avail-project/nexus v1.1.0)
-// Direct import disabled due to Vite pre-bundling Buffer dependency issue
-// Production deployment requires vite.config.ts modification to enable vite-plugin-node-polyfills
+// Dynamic types - will be properly typed when SDK loads
 type UserAsset = any;
 type BridgeAndExecuteParams = any;
 type BridgeAndExecuteResult = any;
+type NexusSDKType = any;
 
 /**
  * Hook to manage Avail Nexus SDK instance
@@ -15,7 +14,7 @@ type BridgeAndExecuteResult = any;
 export function useNexus() {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const [sdk, setSdk] = useState<NexusSDK | null>(null);
+  const [sdk, setSdk] = useState<any | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const [unifiedBalances, setUnifiedBalances] = useState<UserAsset[]>([]);
@@ -27,16 +26,32 @@ export function useNexus() {
     if (isConnected && walletClient && !initRef.current) {
       initRef.current = true;
       
-      // Nexus SDK architectural integration complete
-      // Package: @avail-project/nexus v1.1.0 (installed)
-      // Infrastructure: Multi-chain Wagmi config (Sepolia + Avail Testnet)
-      // Components: CrossChainBridgeCard, useNexus hook
-      // Blocker: Requires vite.config.ts modification (vite-plugin-node-polyfills) for Buffer polyfill
-      // The vite.config.ts file is protected in this environment
+      const initSdk = async () => {
+        try {
+          // Load polyfills first
+          await import('../polyfills');
+          
+          // Dynamically import Nexus SDK after polyfills are loaded
+          const { NexusSDK } = await import('@avail-project/nexus');
+          
+          console.log('Attempting to initialize Nexus SDK...');
+          const nexus = new NexusSDK({ network: 'testnet' });
+          
+          // Initialize with wallet provider
+          if (window.ethereum) {
+            await nexus.initialize(window.ethereum);
+            setSdk(nexus);
+            setIsInitialized(true);
+            console.log('Nexus SDK initialized successfully!');
+          }
+        } catch (error) {
+          console.error('Nexus SDK initialization failed:', error);
+          setInitError(error instanceof Error ? error.message : 'SDK initialization failed. Requires vite.config.ts Buffer polyfill configuration.');
+          initRef.current = false;
+        }
+      };
       
-      console.log('Nexus SDK: Architectural integration complete, requires vite.config.ts polyfill configuration');
-      setInitError('Requires vite.config.ts modification to enable Buffer polyfill (vite-plugin-node-polyfills already installed)');
-      initRef.current = false;
+      initSdk();
     }
     
     // Cleanup on disconnect
