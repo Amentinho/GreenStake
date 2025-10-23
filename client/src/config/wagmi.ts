@@ -1,12 +1,13 @@
 import { createConfig, http } from 'wagmi';
-import { sepolia, mainnet } from 'wagmi/chains';
+import { sepolia } from 'wagmi/chains';
 import { injected, walletConnect } from '@wagmi/connectors';
-import { availTestnet } from './chains';
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
 
+// Sepolia-focused configuration for GreenStake DEX
+// All smart contract interactions happen on Sepolia testnet
 export const config = createConfig({
-  chains: [sepolia, availTestnet, mainnet],
+  chains: [sepolia], // Primary chain: Ethereum Sepolia testnet
   connectors: [
     injected(),
     walletConnect({ 
@@ -16,7 +17,5 @@ export const config = createConfig({
   ],
   transports: {
     [sepolia.id]: http(),
-    [availTestnet.id]: http(),
-    [mainnet.id]: http(),
   },
 });

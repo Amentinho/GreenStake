@@ -8,6 +8,7 @@ import { TradeCard } from "@/components/TradeCard";
 import { CrossChainBridgeCard } from "@/components/CrossChainBridgeCard";
 import { ExplorerEmbed } from "@/components/ExplorerEmbed";
 import { ActivityHistory } from "@/components/ActivityHistory";
+import { NetworkSwitcher } from "@/components/NetworkSwitcher";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Wallet } from "lucide-react";
 
@@ -49,6 +50,9 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Network switcher alert */}
+                <NetworkSwitcher />
+                
                 {/* Main trading interface */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Left column */}
