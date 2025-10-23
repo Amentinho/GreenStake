@@ -8,8 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
-import { parseEther, formatUnits } from "viem";
-import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID, PYTH_CONTRACT_ADDRESS, PYTH_ABI } from "@/lib/constants";
+import { parseEther, formatUnits, parseUnits } from "viem";
+import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID, PYTH_CONTRACT_ADDRESS, PYTH_ABI, PYUSD_TESTNET, ERC20_ABI } from "@/lib/constants";
 import { EvmPriceServiceConnection } from '@pythnetwork/pyth-evm-js';
 
 interface TradeCardProps {
@@ -27,7 +27,14 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [priceUpdateData, setPriceUpdateData] = useState<string[]>([]);
   const { toast } = useToast();
 
-  // Separate hooks for price update and trade execution
+  // Separate hooks for PYUSD approval, price update, and trade execution
+  const { 
+    data: approvalHash, 
+    writeContract: writeApproval, 
+    isPending: isApproving,
+    error: approvalError 
+  } = useWriteContract();
+
   const { 
     data: priceUpdateHash, 
     writeContract: writePriceUpdate, 
@@ -42,6 +49,10 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     error: tradeError 
   } = useWriteContract();
 
+  const { isLoading: isApprovalConfirming, isSuccess: isApprovalConfirmed } = useWaitForTransactionReceipt({
+    hash: approvalHash,
+  });
+
   const { isLoading: isPriceUpdateConfirming, isSuccess: isPriceUpdateConfirmed } = useWaitForTransactionReceipt({
     hash: priceUpdateHash,
   });
@@ -50,13 +61,25 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     hash: tradeHash,
   });
 
-  // Debug logging
+  // Handle PYUSD approval confirmation
   useEffect(() => {
-    console.log('Price update hash:', priceUpdateHash);
-    console.log('isPriceUpdating:', isPriceUpdating);
-    console.log('isPriceUpdateConfirming:', isPriceUpdateConfirming);
-    console.log('isPriceUpdateConfirmed:', isPriceUpdateConfirmed);
-  }, [priceUpdateHash, isPriceUpdating, isPriceUpdateConfirming, isPriceUpdateConfirmed]);
+    if (isApprovalConfirmed && approvalHash) {
+      console.log('PYUSD approval confirmed! Hash:', approvalHash);
+      toast({
+        title: "PYUSD Approved ✓",
+        description: "Now executing your trade...",
+      });
+      
+      // Refetch allowance
+      refetchAllowance();
+      
+      // Automatically execute trade after approval confirms
+      setTimeout(() => {
+        console.log('Executing trade after approval...');
+        executeTradeTx();
+      }, 1000);
+    }
+  }, [isApprovalConfirmed, approvalHash]);
 
   // Get user's staked balance (poll for real-time updates)
   const { data: stakedBalance } = useReadContract({
@@ -76,6 +99,28 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     functionName: 'getCurrentEnergyPrice',
     query: {
       refetchInterval: 10000, // Refresh every 10 seconds
+    },
+  });
+
+  // Get PYUSD balance
+  const { data: pyusdBalance } = useReadContract({
+    address: PYUSD_TESTNET as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [walletAddress as `0x${string}`],
+    query: {
+      refetchInterval: 5000,
+    },
+  });
+
+  // Get PYUSD allowance for the contract
+  const { data: pyusdAllowance, refetch: refetchAllowance } = useReadContract({
+    address: PYUSD_TESTNET as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [walletAddress as `0x${string}`, CONTRACT_ADDRESS as `0x${string}`],
+    query: {
+      refetchInterval: 5000,
     },
   });
 
@@ -115,7 +160,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
   }, [energyPriceData, tradeAmount]);
 
-  const isTrading = isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
+  const isTrading = isApproving || isApprovalConfirming || isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
 
   // Handle price update confirmation - automatically proceed to trade
   useEffect(() => {
@@ -142,6 +187,20 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   }, [isTradeConfirmed, tradeHash]);
 
   // Handle errors
+  useEffect(() => {
+    if (approvalError) {
+      console.error("PYUSD approval error:", approvalError);
+      toast({
+        title: "PYUSD Approval Failed",
+        description: approvalError.message.includes("user rejected")
+          ? "You rejected the approval transaction"
+          : "Failed to approve PYUSD. Please try again.",
+        variant: "destructive",
+      });
+      setTradeStatus('idle');
+    }
+  }, [approvalError]);
+
   useEffect(() => {
     if (priceUpdateError) {
       console.error("Price update error:", priceUpdateError);
@@ -241,6 +300,24 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     });
   };
 
+  // Approve PYUSD spending
+  const approvePyusd = () => {
+    setTradeStatus('executing');
+    const pyusdAmountUnits = parseUnits(pyusdAmount, 6); // PYUSD has 6 decimals
+    
+    toast({
+      title: "Approve PYUSD",
+      description: "Please approve the contract to spend your PYUSD",
+    });
+
+    writeApproval({
+      address: PYUSD_TESTNET as `0x${string}`,
+      abi: ERC20_ABI,
+      functionName: 'approve',
+      args: [CONTRACT_ADDRESS as `0x${string}`, pyusdAmountUnits],
+    });
+  };
+
   const handleTrade = async () => {
     if (!stakeCompleted) {
       toast({
@@ -283,9 +360,35 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       return;
     }
 
+    // Check PYUSD balance
+    const pyusdBalanceBigInt = pyusdBalance ?? BigInt(0);
+    const requiredPyusd = parseUnits(pyusdAmount, 6);
+    
+    if (pyusdBalanceBigInt < requiredPyusd) {
+      toast({
+        title: "Insufficient PYUSD",
+        description: `You need ${pyusdAmount} PYUSD to execute this trade. Get testnet PYUSD from the faucet.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check PYUSD allowance
+    const allowanceBigInt = pyusdAllowance ?? BigInt(0);
+    
+    if (allowanceBigInt < requiredPyusd) {
+      toast({
+        title: "PYUSD Approval Needed",
+        description: "You need to approve the contract to spend your PYUSD first",
+      });
+      
+      // Approve PYUSD
+      approvePyusd();
+      return;
+    }
+
     try {
-      // Skip Pyth price update for now - execute trade directly
-      // The contract will use the last known price from previous updates
+      // PYUSD already approved, execute trade directly
       toast({
         title: "Executing Trade...",
         description: "Using current oracle price from contract",

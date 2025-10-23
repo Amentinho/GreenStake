@@ -8,9 +8,9 @@
  * 4. Restart the app
  */
 
-// Deployed GreenStakeDEX contract on Sepolia testnet
-// Deployed with Pyth Network Oracle Integration
-export const CONTRACT_ADDRESS = '0x4B3E4f81B1Bc7B48E3D419860A10a953f3217D26';
+// Deployed GreenStakeDEX V3 contract on Sepolia testnet
+// Production-ready with DAO/Multisig, Reentrancy Guards, Real PYUSD, Optimized Storage
+export const CONTRACT_ADDRESS = '0x802405d53f046429D4e76660FFf9E0FE2b3359A5';
 
 // Pyth Network Oracle configuration
 export const PYTH_CONTRACT_ADDRESS = '0x2880aB155794e7179c9eE2e38200202908C17B43'; // Pyth on Sepolia
@@ -58,6 +58,37 @@ export const PYTH_ABI = [
   }
 ] as const;
 
+// ERC20 ABI for PYUSD approval
+export const ERC20_ABI = [
+  {
+    "inputs": [
+      { "internalType": "address", "name": "spender", "type": "address" },
+      { "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "approve",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "owner", "type": "address" },
+      { "internalType": "address", "name": "spender", "type": "address" }
+    ],
+    "name": "allowance",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
+    "name": "balanceOf",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const;
+
 // Contract ABI - Only the functions we need
 export const CONTRACT_ABI = [
   {
@@ -81,10 +112,11 @@ export const CONTRACT_ABI = [
   },
   {
     "inputs": [{ "internalType": "address", "name": "user", "type": "address" }],
-    "name": "getUserStakes",
+    "name": "getUserActiveStakes",
     "outputs": [
       {
         "components": [
+          { "internalType": "uint256", "name": "id", "type": "uint256" },
           { "internalType": "address", "name": "user", "type": "address" },
           { "internalType": "uint256", "name": "amount", "type": "uint256" },
           { "internalType": "uint256", "name": "energyNeed", "type": "uint256" },
@@ -100,11 +132,39 @@ export const CONTRACT_ABI = [
     "type": "function"
   },
   {
-    "inputs": [{ "internalType": "address", "name": "user", "type": "address" }],
-    "name": "getUserTrades",
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" },
+      { "internalType": "uint256", "name": "stakeId", "type": "uint256" }
+    ],
+    "name": "getUserStake",
     "outputs": [
       {
         "components": [
+          { "internalType": "uint256", "name": "id", "type": "uint256" },
+          { "internalType": "address", "name": "user", "type": "address" },
+          { "internalType": "uint256", "name": "amount", "type": "uint256" },
+          { "internalType": "uint256", "name": "energyNeed", "type": "uint256" },
+          { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+          { "internalType": "bool", "name": "active", "type": "bool" }
+        ],
+        "internalType": "struct GreenStakeDEX.Stake",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" },
+      { "internalType": "uint256", "name": "tradeId", "type": "uint256" }
+    ],
+    "name": "getUserTrade",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "uint256", "name": "id", "type": "uint256" },
           { "internalType": "address", "name": "user", "type": "address" },
           { "internalType": "string", "name": "fromChain", "type": "string" },
           { "internalType": "string", "name": "toChain", "type": "string" },
@@ -113,11 +173,25 @@ export const CONTRACT_ABI = [
           { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
           { "internalType": "bool", "name": "completed", "type": "bool" }
         ],
-        "internalType": "struct GreenStakeDEX.Trade[]",
+        "internalType": "struct GreenStakeDEX.Trade",
         "name": "",
-        "type": "tuple[]"
+        "type": "tuple"
       }
     ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "name": "stakeCount",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "name": "tradeCount",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
@@ -200,11 +274,20 @@ export const CONTRACT_ABI = [
     "anonymous": false,
     "inputs": [
       { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
-      { "indexed": true, "internalType": "address", "name": "settlementAddress", "type": "address" },
       { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
       { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
     ],
-    "name": "TradeSettled",
+    "name": "PyusdSettlementReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "priceId", "type": "bytes32" },
+      { "indexed": false, "internalType": "int64", "name": "price", "type": "int64" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "PriceUpdated",
     "type": "event"
   },
   {

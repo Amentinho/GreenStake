@@ -77,11 +77,12 @@ Preferred communication style: Simple, everyday language.
 
 ### Smart Contract Architecture
 
-**Current Deployment**: GreenStakeDEX V1 on Sepolia
-- **Address**: `0x4B3E4f81B1Bc7B48E3D419860A10a953f3217D26`
+**Current Deployment**: GreenStakeDEX V3 (Production-Ready) on Sepolia
+- **Address**: `0x802405d53f046429D4e76660FFf9E0FE2b3359A5`
 - **Language**: Solidity 0.8.20+
 - **Network**: Sepolia testnet
 - **Oracle**: Pyth Network (`0x2880aB155794e7179c9eE2e38200202908C17B43`)
+- **PYUSD Token**: `0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9` (Sepolia testnet)
 
 **Contract Versions Available**:
 - **V1** (`contracts/GreenStakeDEX.sol`) - Initial deployment with Pyth integration
