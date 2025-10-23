@@ -67,10 +67,16 @@ export function ForecastCard({ walletAddress, onForecastComplete }: ForecastCard
               </p>
             </div>
 
-            <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-4 py-3">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <p className="text-sm">
-                Based on historical patterns and AI analysis
+            <div className="space-y-3 rounded-lg border bg-muted/50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium">
+                  AI Model: Hugging Face GPT-2
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Trained on historical consumption: 1000, 1200, 1100, 1350, 1250 kWh (last 5 months). 
+                Predicts next month's energy needs using pattern recognition. Fallback: 1300 kWh if API unavailable.
               </p>
             </div>
 
@@ -87,11 +93,16 @@ export function ForecastCard({ walletAddress, onForecastComplete }: ForecastCard
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg border-2 border-dashed p-8 text-center">
-              <Brain className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                Use AI to predict your energy consumption based on historical data
-              </p>
+            <div className="rounded-lg border-2 border-dashed p-8 text-center space-y-3">
+              <Brain className="mx-auto h-12 w-12 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Predict next month's energy consumption using Hugging Face AI
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Analyzes historical patterns: 1000, 1200, 1100, 1350, 1250 kWh (last 5 months)
+                </p>
+              </div>
             </div>
 
             <Button
