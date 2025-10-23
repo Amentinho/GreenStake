@@ -1,0 +1,194 @@
+Step 1: Fork & Sync Repo in Replit (5 Min)
+In Replit: Create new Repl → "Import from GitHub" → URL: https://github.com/Amentinho/GreenStake → Name: greenstake-avail-integration.
+Sync: Tools > Git > Connect to GitHub (Amentinho/GreenStake) → Pull latest (includes empty README; we'll reference it).
+Shell (bottom panel):
+
+rm -rf node_modules package-lock.json  # Clean (pnpm-lock.yaml if using pnpm)
+npm install  # Matches README (npm for Express + React deps)
+This installs the base (React, Vite, Tailwind, Wagmi, Viem, etc.). If pnpm preferred (faster), run npm install -g pnpm && pnpm install.
+Step 2: Install Avail Nexus Deps & Configure Env (5–10 Min)
+Build on the Web3 Integration (Ethers v6 + WalletConnect + Sepolia).
+
+Shell:
+
+
+npm add @availproject/nexus-core@latest @availproject/nexus-widgets@latest  # Nexus SDK (core for intents, widgets for UI)
+npm add -D @types/node  # TS support for Vite
+Integrates with Wagmi/Viem (README stack). No conflicts—Nexus uses Viem under the hood.
+Update Env Vars (Replit Tools > Secrets – Extends README's WalletConnect):
+
+VITE_WALLETCONNECT_PROJECT_ID: From Dashboard | Reown (New Project → Copy ID; required for multi-chain).
+VITE_INFURA_KEY: For Sepolia RPC (infura.io signup).
+VITE_AVAIL_RPC: Optional public Avail Testnet RPC (https://testnet-rpc.availproject.org from Avail docs).
+Access in code: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID.
+Update package.json Scripts (Edit file; add to existing):
+
+json
+
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit"  // From README
+  }
+}
+Step 3: Configure Chains & Wagmi for Avail (5 Min)
+Extends README's config/ folder (Wagmi and app configuration) for multi-chain (Sepolia + Avail Testnet).
+
+Shell: mkdir -p client/src/config (If not existing; matches project structure).
+
+New File client/src/config/chains.ts (Paste; defines chains for Nexus):
+
+ts
+
+import { defineChain } from 'viem';  // From Viem (README stack)
+
+export const sepolia = defineChain({
+  id: 11155111,
+  name: 'Sepolia',
+  nativeCurrency: { decimals: 18, name: 'Ether', symbol: 'ETH' },
+  rpcUrls: { default: { http: [`https://sepolia.infura.io/v3/${import.meta.env.VITE_INFURA_KEY}`] } },
+  blockExplorers: { default: { name: 'Blockscout', url: 'https://sepolia.blockscout.com' } },
+});
+
+export const availTestnet = defineChain({
+  id: 9011,
+  name: 'Avail Testnet',
+  nativeCurrency: { decimals: 18, name: 'AVAIL', symbol: 'AVAIL' },
+  rpcUrls: { default: { http: [import.meta.env.VITE_AVAIL_RPC || 'https://testnet-rpc.availproject.org'] } },
+  blockExplorers: { default: { name: 'Avail Explorer', url: 'https://testnet-explorer.availproject.org' } },
+});
+
+export const chains = [sepolia, availTestnet];
+Update/New File client/src/config/wagmi.ts (Paste; extends Wagmi from README):
+
+ts
+
+import { createConfig, http } from 'wagmi';
+import { walletConnect } from 'wagmi/connectors';
+import { chains } from './chains';
+
+export const config = createConfig({
+  chains,
+  connectors: [
+    walletConnect({
+      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,  // From Reown dashboard
+    }),
+  ],
+  transports: chains.reduce((acc, chain) => ({ ...acc, [chain.id]: http() }), {}),
+});
+Step 4: Integrate Nexus in Frontend (10 Min)
+Adds to README's React Frontend (components/, lib/, config/). Focus on pages/ or components/ for Bridge UI.
+
+Edit client/src/main.tsx (Entry; wrap with providers – extends Wagmi):
+
+tsx
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.tsx';  // Or your main page from pages/
+import './index.css';
+import { WagmiProvider } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { config } from './config/wagmi';
+import { chains } from './config/chains';
+import { NexusProvider } from '@avail-project/nexus-widgets';  // Avail wrap
+
+const queryClient = new QueryClient();
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <NexusProvider chains={chains} projectId={import.meta.env.VITE_WALLETCONNECT_PROJECT_ID}>
+          <App />
+        </NexusProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  </React.StrictMode>
+);
+Update client/src/App.tsx or New Component in components/CrossChainTrade.tsx (Paste; adds Nexus hooks to existing UI – e.g., in dashboard from Usage Guide):
+
+tsx
+
+import { useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
+import { useNexus } from '@avail-project/nexus-widgets';  // Hooks
+import { chains } from '../config/chains';
+import { ethers } from 'ethers';  // From Web3 Integration
+
+// Mock contract (update with your GreenStakeDEX from Remix)
+const CONTRACT_ADDRESS = '0xYourSepoliaAddress';  // From Setup Instructions
+const ABI = [];  // Paste from Remix
+
+export function CrossChainTrade() {
+  const { address, isConnected } = useAccount();
+  const { handleInit, unifiedBalance, bridgeAndExecute } = useNexus();
+  const [provider] = useState(() => window.ethereum ? new ethers.BrowserProvider(window.ethereum) : null);
+  const [balance, setBalance] = useState('0');
+
+  useEffect(() => {
+    if (isConnected && provider && address) {
+      handleInit(window.ethereum as any);  // Init Nexus (matches README WalletConnect)
+      unifiedBalance({ address }).then((bal) => setBalance(bal?.formatted || '0'));
+    }
+  }, [isConnected, address]);
+
+  const executeTrade = async () => {
+    if (!isConnected) return alert('Connect wallet first!');
+    try {
+      // Intent for energy trade (ties to Key Features: Cross-Chain Trading)
+      const intent = {
+        fromChain: 'sepolia',
+        toChain: 'avail-testnet',
+        actions: [
+          { type: 'approve', token: 'ETK', amount: '100' },  // EnergyToken from contract
+          { type: 'stake', contract: CONTRACT_ADDRESS, amount: '100' }  // ZKP stake
+        ],
+        tokenOut: 'PYUSD'  // Settlement (from Bounty Qualifications)
+      };
+      const tx = await bridgeAndExecute(intent);
+      console.log('Cross-Chain Tx:', tx?.hash);  // View in Blockscout (README Transparency)
+      alert('Trade executed on Avail Testnet!');
+    } catch (error) {
+      console.error('Nexus Error:', error);  // Debug: Check Reown dashboard for sessions
+    }
+  };
+
+  return (
+    <div className="p-4 bg-green-50 rounded-lg">  {/* Tailwind from README */}
+      <h2 className="text-xl font-bold mb-4">Cross-Chain Energy Trade (Avail Nexus)</h2>
+      {isConnected ? (
+        <>
+          <p>Unified Balance: {balance} (Across Chains)</p>
+          <button 
+            onClick={executeTrade}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"  // Shadcn-style
+          >
+            Bridge & Execute: Stake ETK on Avail
+          </button>
+        </>
+      ) : (
+        <p>Connect wallet to start trading.</p>
+      )}
+    </div>
+  );
+}
+Integration Notes: Add <CrossChainTrade /> to your dashboard/page (e.g., in pages/Dashboard.tsx from Usage Guide). Uses TanStack Query for caching (README stack) – e.g., query unifiedBalance.
+Step 5: Deploy Contract & Test (5–10 Min)
+From README's Smart Contract Deployment:
+
+Open Remix - Ethereum IDE in new tab.
+New File contracts/GreenStakeDEX.sol → Paste your contract code (from prior guides, with Semaphore + PYUSD).
+Compile (Solidity 0.8.x) → Deploy to Sepolia (Injected Provider – MetaMask).
+Copy deployed address → Update CONTRACT_ADDRESS in component.
+Test in Replit: Shell npm run dev → Preview → Connect → Execute Trade (console logs tx; view on Blockscout from README).
+Step 6: Run, Debug & Bounty Demo (5 Min)
+Shell: npm run dev (or npm run check for TS – from README).
+Preview: https://your-repl.replit.dev – Test flow (connect → balance → trade).
+Debug (Common Fixes):
+Init Fail: Verify Reown ID in secrets/dashboard (sessions active?).
+Chain Error: MetaMask on Sepolia; add Avail Testnet manually if needed (chainlist.org).
+No Tx: Mock hash in code for demo (e.g., return { hash: '0xmock' }); full solvers via Nexus network in prod.
+Backend Tie-In: Call from Express API (README server/) if needed (e.g., POST /trade → bridgeAndExecute).
