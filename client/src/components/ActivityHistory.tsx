@@ -89,7 +89,10 @@ export function ActivityHistory({ walletAddress }: ActivityHistoryProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium">
-                      {activity.type === 'stake' ? 'ZKP Stake' : 'Cross-Chain Trade'}
+                      {activity.type === 'stake' 
+                        ? 'ZKP Stake' 
+                        : (activity.fromChain === activity.toChain ? 'On-Chain Trade' : 'Cross-Chain Trade')
+                      }
                     </p>
                     <span className={`text-xs px-2 py-0.5 rounded ${
                       activity.status === 'confirmed' || activity.status === 'executed'
@@ -111,7 +114,10 @@ export function ActivityHistory({ walletAddress }: ActivityHistoryProps) {
                     ) : (
                       <>
                         <div>
-                          {activity.fromChain.split('-')[0]} → {activity.toChain.split('-')[0]}
+                          {activity.fromChain === activity.toChain 
+                            ? `${activity.fromChain}` 
+                            : `${activity.fromChain.split('-')[0]} → ${activity.toChain.split('-')[0]}`
+                          }
                         </div>
                         <div>
                           <span className="font-mono">{activity.etkAmount} ETK</span> → <span className="font-mono">{activity.pyusdAmount} PYUSD</span>
