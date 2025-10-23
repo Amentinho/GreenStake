@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink, TrendingUp } from "lucide-react";
+import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink, TrendingUp, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
@@ -13,16 +13,19 @@ import { parseEther, formatUnits, parseUnits } from "viem";
 import { sepolia } from "wagmi/chains";
 import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID, PYTH_CONTRACT_ADDRESS, PYTH_ABI, PYUSD_TESTNET, ERC20_ABI } from "@/lib/constants";
 import { EvmPriceServiceConnection } from '@pythnetwork/pyth-evm-js';
+import { useNexus } from "@/hooks/use-nexus";
 
 interface TradeCardProps {
   walletAddress: string;
   stakeCompleted: boolean;
 }
 
-type TradeStatus = 'idle' | 'fetching-price' | 'updating-price' | 'executing' | 'completed';
+type TradeStatus = 'idle' | 'fetching-price' | 'updating-price' | 'executing' | 'bridging' | 'completed';
+type TradeMode = 'on-chain' | 'cross-chain';
 
 export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [tradeStatus, setTradeStatus] = useState<TradeStatus>('idle');
+  const [tradeMode, setTradeMode] = useState<TradeMode>('on-chain');
   const [tradeAmount, setTradeAmount] = useState("0.01");
   const [pyusdAmount, setPyusdAmount] = useState("0");
   const [currentEnergyPrice, setCurrentEnergyPrice] = useState<string>("0");
@@ -32,6 +35,9 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   
   // Check if user is on correct network
   const isCorrectNetwork = chain?.id === sepolia.id;
+  
+  // Nexus SDK for cross-chain bridging
+  const { sdk, isInitialized: isNexusReady, isLoading: isNexusInitializing, initializeNexus, bridgeAndExecute } = useNexus();
 
   // Separate hooks for PYUSD approval, price update, and trade execution
   const { 
@@ -166,7 +172,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
   }, [energyPriceData, tradeAmount]);
 
-  const isTrading = isApproving || isApprovalConfirming || isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
+  const isTrading = isApproving || isApprovalConfirming || isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price' || tradeStatus === 'bridging';
 
   // Handle price update confirmation - automatically proceed to trade
   useEffect(() => {
