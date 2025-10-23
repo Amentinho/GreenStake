@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Zap, Shield, Brain, Network } from "lucide-react";
+import { ArrowRight, Zap, Brain, Network, TrendingUp } from "lucide-react";
 
 export function Hero() {
   const scrollToDashboard = () => {
@@ -19,17 +19,17 @@ export function Hero() {
         <div className="mx-auto max-w-4xl text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-card/50 px-4 py-1.5 backdrop-blur">
             <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-sm font-medium">Powered by Avail Nexus + PYUSD</span>
+            <span className="text-sm font-medium">Live on Sepolia • PYUSD Settlement</span>
           </div>
 
           <h1 className="mb-6 text-5xl font-bold leading-tight tracking-tight md:text-6xl lg:text-7xl">
-            Sustainable Energy Trading,
-            <span className="text-primary"> Cross-Chain</span>
+            Sustainable Energy Trading
+            <span className="text-primary"> on Ethereum</span>
           </h1>
 
           <p className="mb-10 text-lg text-muted-foreground md:text-xl">
-            Trade renewable energy privately with zero-knowledge proofs, AI-powered forecasting, 
-            and seamless cross-chain settlements via PYUSD.
+            Trade renewable energy on Ethereum testnet with AI demo predictions, real-time Pyth oracle pricing, 
+            and PYUSD stablecoin settlements. V3 contract deployed on Sepolia.
           </p>
 
           <div className="mb-16 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -61,29 +61,29 @@ export function Hero() {
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                 <Brain className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="font-semibold">AI Forecasting</h3>
+              <h3 className="font-semibold">AI Integration</h3>
               <p className="text-center text-sm text-muted-foreground">
-                Predict energy needs with Hugging Face models
+                GPT-2 text generation demo for energy predictions
               </p>
             </div>
 
             <div className="flex flex-col items-center gap-2 rounded-xl border bg-card/50 p-6 backdrop-blur">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
+                <TrendingUp className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="font-semibold">ZKP Privacy</h3>
+              <h3 className="font-semibold">Pyth Oracle</h3>
               <p className="text-center text-sm text-muted-foreground">
-                Anonymous staking with Semaphore protocol
+                Real-time ETH/USD pricing for settlements
               </p>
             </div>
 
-            <div className="flex flex-col items-center gap-2 rounded-xl border bg-card/50 p-6 backdrop-blur">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <Network className="h-6 w-6 text-primary" />
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed bg-muted/30 p-6 backdrop-blur opacity-70">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
+                <Network className="h-6 w-6 text-muted-foreground" />
               </div>
-              <h3 className="font-semibold">Cross-Chain</h3>
+              <h3 className="font-semibold text-muted-foreground">Cross-Chain</h3>
               <p className="text-center text-sm text-muted-foreground">
-                Seamless bridging with Avail Nexus
+                Avail Nexus bridging (coming soon)
               </p>
             </div>
 
@@ -93,7 +93,7 @@ export function Hero() {
               </div>
               <h3 className="font-semibold">PYUSD Settled</h3>
               <p className="text-center text-sm text-muted-foreground">
-                Instant stablecoin settlements
+                Testnet stablecoin settlement on Sepolia
               </p>
             </div>
           </div>
