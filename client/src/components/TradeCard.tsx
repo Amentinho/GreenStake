@@ -8,8 +8,9 @@ import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink, T
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther, formatUnits, parseUnits } from "viem";
+import { sepolia } from "wagmi/chains";
 import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID, PYTH_CONTRACT_ADDRESS, PYTH_ABI, PYUSD_TESTNET, ERC20_ABI } from "@/lib/constants";
 import { EvmPriceServiceConnection } from '@pythnetwork/pyth-evm-js';
 import { useNexus } from "@/hooks/use-nexus";
@@ -30,6 +31,10 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [currentEnergyPrice, setCurrentEnergyPrice] = useState<string>("0");
   const [priceUpdateData, setPriceUpdateData] = useState<string[]>([]);
   const { toast } = useToast();
+  const { chain } = useAccount();
+  
+  // Check if user is on correct network
+  const isCorrectNetwork = chain?.id === sepolia.id;
   
   // Nexus SDK for cross-chain bridging
   const { sdk, isInitialized: isNexusReady, isLoading: isNexusInitializing, initializeNexus, bridgeAndExecute } = useNexus();
@@ -398,6 +403,15 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   };
 
   const handleTrade = async () => {
+    if (!isCorrectNetwork && tradeMode === 'on-chain') {
+      toast({
+        title: "Wrong Network",
+        description: "Please switch to Ethereum Sepolia testnet to trade",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const numAmount = parseFloat(tradeAmount);
     if (isNaN(numAmount) || numAmount <= 0) {
       toast({

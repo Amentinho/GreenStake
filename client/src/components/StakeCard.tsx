@@ -7,8 +7,9 @@ import { Shield, Loader2, Lock, ExternalLink, ArrowUpFromLine } from "lucide-rea
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther } from "viem";
+import { sepolia } from "wagmi/chains";
 import { CONTRACT_ADDRESS, CONTRACT_ABI, MIN_STAKE_WEI } from "@/lib/constants";
 
 interface StakeCardProps {
@@ -21,6 +22,10 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
   const [amount, setAmount] = useState("0.01");
   const [unstakeAmount, setUnstakeAmount] = useState("0.01");
   const { toast } = useToast();
+  const { chain } = useAccount();
+  
+  // Check if user is on correct network
+  const isCorrectNetwork = chain?.id === sepolia.id;
   
   // Stake transaction hooks
   const { data: hash, writeContract, isPending: isWriting, error: writeError } = useWriteContract();
@@ -158,6 +163,15 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
   };
 
   const handleStake = async () => {
+    if (!isCorrectNetwork) {
+      toast({
+        title: "Wrong Network",
+        description: "Please switch to Ethereum Sepolia testnet to stake",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!forecastValue) {
       toast({
         title: "Forecast Required",
@@ -197,6 +211,15 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
   };
 
   const handleUnstake = async () => {
+    if (!isCorrectNetwork) {
+      toast({
+        title: "Wrong Network",
+        description: "Please switch to Ethereum Sepolia testnet to unstake",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const numUnstakeAmount = parseFloat(unstakeAmount);
     if (isNaN(numUnstakeAmount) || numUnstakeAmount <= 0) {
       toast({
