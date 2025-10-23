@@ -23,8 +23,8 @@ export function useNexus() {
 
   // Manual initialization function (called on-demand)
   const initializeNexus = useCallback(async () => {
-    if (initRef.current || !isConnected) {
-      return; // Already initialized or not connected
+    if (initRef.current || !isConnected || !walletClient) {
+      return; // Already initialized, not connected, or no wallet client
     }
     
     initRef.current = true;
@@ -41,12 +41,41 @@ export function useNexus() {
       console.log('Attempting to initialize Nexus SDK...');
       const nexus = new NexusSDK({ network: 'testnet' });
       
-      // Initialize with wallet provider
-      if (window.ethereum) {
-        await nexus.initialize(window.ethereum);
+      // Try to get the raw provider from wallet client first, fallback to window.ethereum
+      let provider = window.ethereum;
+      
+      // If using wagmi wallet client, try to get the underlying provider
+      if (walletClient?.account?.address) {
+        console.log('Using wallet client provider');
+        provider = await walletClient.transport;
+      }
+      
+      if (provider) {
+        console.log('Initializing Nexus with provider...');
+        await nexus.initialize(window.ethereum); // Always use window.ethereum for consistency
+        
+        // Set up allowance hook for token approvals - this must be done after initialization
+        nexus.setOnAllowanceHook(async ({ allow, deny, sources }: any) => {
+          console.log('Allowance required for sources:', sources);
+          // For demo, we'll auto-approve with minimum allowances
+          // In production, show proper approval modals
+          const allowances = sources.map(() => 'min');
+          allow(allowances);
+        });
+
+        // Set up intent hook for transaction previews
+        nexus.setOnIntentHook(({ intent, allow, deny, refresh }: any) => {
+          console.log('Transaction intent:', intent);
+          // For demo, we'll auto-approve
+          // In production, show transaction preview modals
+          allow();
+        });
+        
         setSdk(nexus);
         setIsInitialized(true);
-        console.log('Nexus SDK initialized successfully!');
+        console.log('Nexus SDK initialized successfully with hooks!');
+      } else {
+        throw new Error('No wallet provider found');
       }
     } catch (error) {
       console.error('Nexus SDK initialization failed:', error);
@@ -55,7 +84,7 @@ export function useNexus() {
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected]);
+  }, [isConnected, walletClient]);
     
   // Cleanup on disconnect
   useEffect(() => {
@@ -99,19 +128,6 @@ export function useNexus() {
     try {
       setIsLoading(true);
       
-      // Set up intent approval hook - auto-approve for demo
-      sdk.setOnIntentHook(({ allow }: any) => {
-        console.log('Intent approval requested');
-        allow();
-      });
-
-      // Set up allowance approval hook - auto-approve with minimum allowances
-      sdk.setOnAllowanceHook(({ allow, sources }: any) => {
-        console.log('Allowance approval requested for sources:', sources);
-        const allowances = sources.map(() => 'min');
-        allow(allowances);
-      });
-
       console.log('Executing Nexus transfer:', params);
       const result = await sdk.transfer(params);
       console.log('Nexus transfer result:', result);

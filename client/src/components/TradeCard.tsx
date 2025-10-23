@@ -332,6 +332,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
 
   // Handle cross-chain trade via Nexus SDK
   const handleCrossChainTrade = async () => {
+    // Verify Nexus SDK is ready
     if (!isNexusReady || !sdk) {
       toast({
         title: "Nexus Not Ready",
@@ -341,11 +342,21 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       return;
     }
 
+    // Verify user is on Sepolia network
+    if (!isCorrectNetwork || chain?.id !== sepolia.id) {
+      toast({
+        title: "Wrong Network",
+        description: "Please switch to Sepolia testnet in your wallet to use cross-chain bridging",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setTradeStatus('bridging');
       toast({
         title: "Initiating Cross-Chain Trade",
-        description: "Bridging from Ethereum Sepolia to Base Sepolia via Avail Nexus...",
+        description: "Bridging from Ethereum Sepolia to Base Sepolia...",
       });
 
       // Use Nexus SDK transfer method - bridging from Sepolia to Base Sepolia
@@ -379,7 +390,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         title: "Cross-Chain Transfer Success! 🌉",
         description: (
           <div className="space-y-2">
-            <p>Bridged {tradeAmount} ETH from Sepolia to Base Sepolia via Avail Nexus</p>
+            <p>Bridged {tradeAmount} ETH from Sepolia to Base Sepolia</p>
             {sepoliaTx !== 'pending' && (
               <a
                 href={`https://sepolia.etherscan.io/tx/${sepoliaTx}`}
@@ -413,7 +424,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       console.error("Cross-chain trade error:", error);
       toast({
         title: "Cross-Chain Trade Failed",
-        description: error instanceof Error ? error.message : "Failed to bridge to Avail Testnet",
+        description: error instanceof Error ? error.message : "Failed to bridge to Base Sepolia",
         variant: "destructive",
       });
       setTradeStatus('idle');
@@ -629,7 +640,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
               </div>
             </div>
             <p className={`text-xs font-medium ${tradeMode === 'cross-chain' ? 'text-primary' : 'text-muted-foreground'}`}>
-              Avail {tradeMode === 'cross-chain' && 'Testnet'}
+              {tradeMode === 'cross-chain' ? 'Base Sepolia' : 'Sepolia'}
             </p>
             <p className="text-xs text-muted-foreground">
               {tradeMode === 'cross-chain' ? 'Active' : 'Select Mode'}
@@ -698,7 +709,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           {tradeStatus === 'bridging' ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Bridging to Avail...
+              Bridging to Base Sepolia...
             </>
           ) : tradeStatus === 'fetching-price' ? (
             <>
@@ -733,7 +744,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           ) : (
             <>
               {tradeMode === 'cross-chain' ? <Sparkles className="h-4 w-4" /> : <Network className="h-4 w-4" />}
-              {tradeMode === 'cross-chain' ? 'Bridge to Avail via Nexus' : 'Execute with Pyth Oracle'}
+              {tradeMode === 'cross-chain' ? 'Bridge to Base Sepolia' : 'Execute with Pyth Oracle'}
             </>
           )}
         </Button>
