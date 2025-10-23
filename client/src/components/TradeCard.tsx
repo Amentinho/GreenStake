@@ -319,15 +319,6 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   };
 
   const handleTrade = async () => {
-    if (!stakeCompleted) {
-      toast({
-        title: "Stake Required",
-        description: "Please complete staking first",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const numAmount = parseFloat(tradeAmount);
     if (isNaN(numAmount) || numAmount <= 0) {
       toast({
@@ -407,7 +398,9 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
   };
 
-  const isDisabled = !stakeCompleted || isTrading || tradeStatus === 'completed';
+  // Allow trading if user has staked balance (from any session)
+  const hasStakedBalance = stakedBalance && stakedBalance > BigInt(0);
+  const isDisabled = !hasStakedBalance || isTrading || tradeStatus === 'completed';
   const stakedBalanceEth = stakedBalance ? (Number(stakedBalance) / 1e18).toFixed(4) : "0.00";
 
   return (
@@ -435,10 +428,12 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
               <span className="text-lg font-bold text-primary" data-testid="text-energy-price">${currentEnergyPrice}</span>
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-medium">Pyth Network Oracle • Real-time on-chain pricing</p>
+              <p className="font-medium">Pyth Network Oracle • Demo Pricing</p>
               <p>
-                Uses ETH/USD feed as proxy for energy costs (1 ETH = ${currentEnergyPrice} energy value). 
-                Updates every ~1 second on-chain. Fallback: $3000 if oracle unavailable.
+                Uses ETH/USD price feed ($0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace) as proxy for energy costs. 
+                Pyth publishes price updates ~1 second on-chain, but contract uses last fetched value. 
+                Fallback: $3000 hardcoded if oracle unavailable. 
+                <span className="font-medium">Note:</span> In production, would use dedicated kWh pricing oracle.
               </p>
             </div>
           </div>
@@ -457,18 +452,18 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           </div>
 
           <div className="flex flex-col items-center">
-            <ArrowRight className="h-5 w-5 text-primary" />
-            <span className="text-xs text-muted-foreground mt-1">Nexus</span>
+            <ArrowRight className="h-5 w-5 text-muted-foreground opacity-50" />
+            <span className="text-xs text-muted-foreground mt-1">Planned</span>
           </div>
 
-          <div className="rounded-lg border bg-card p-4 text-center">
+          <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-center opacity-60">
             <div className="mb-2 flex items-center justify-center">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-xs font-bold text-primary">AVL</span>
+              <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                <span className="text-xs font-bold text-muted-foreground">AVL</span>
               </div>
             </div>
-            <p className="text-xs font-medium">Avail</p>
-            <p className="text-xs text-muted-foreground">Testnet</p>
+            <p className="text-xs font-medium text-muted-foreground">Avail</p>
+            <p className="text-xs text-muted-foreground">Coming Soon</p>
           </div>
         </div>
 

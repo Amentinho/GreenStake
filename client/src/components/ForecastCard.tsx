@@ -71,12 +71,14 @@ export function ForecastCard({ walletAddress, onForecastComplete }: ForecastCard
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
                 <p className="text-sm font-medium">
-                  AI Model: Hugging Face GPT-2
+                  AI Model: Hugging Face GPT-2 (Text Generation)
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Trained on historical consumption: 1000, 1200, 1100, 1350, 1250 kWh (last 5 months). 
-                Predicts next month's energy needs using pattern recognition. Fallback: 1300 kWh if API unavailable.
+                <span className="font-medium">How it works:</span> GPT-2 is a general language model (not trained on energy data). 
+                We provide sample data [1000, 1200, 1100, 1350, 1250] kWh in a text prompt, and GPT-2 generates a number. 
+                This is a <span className="font-medium">demonstration of AI integration</span>, not actual energy forecasting. 
+                Fallback: 1300 kWh average if API fails.
               </p>
             </div>
 
@@ -97,10 +99,10 @@ export function ForecastCard({ walletAddress, onForecastComplete }: ForecastCard
               <Brain className="mx-auto h-12 w-12 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Predict next month's energy consumption using Hugging Face AI
+                  Generate AI prediction using Hugging Face GPT-2
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Analyzes historical patterns: 1000, 1200, 1100, 1350, 1250 kWh (last 5 months)
+                  Demo: Text generation model receives sample data [1000, 1200, 1100, 1350, 1250] kWh and outputs a number (not real energy analysis)
                 </p>
               </div>
             </div>
