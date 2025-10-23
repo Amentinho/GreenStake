@@ -5,6 +5,7 @@ import { StatsBar } from "@/components/StatsBar";
 import { ForecastCard } from "@/components/ForecastCard";
 import { StakeCard } from "@/components/StakeCard";
 import { TradeCard } from "@/components/TradeCard";
+import { CrossChainBridgeCard } from "@/components/CrossChainBridgeCard";
 import { ExplorerEmbed } from "@/components/ExplorerEmbed";
 import { ActivityHistory } from "@/components/ActivityHistory";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -72,6 +73,9 @@ export default function Home() {
                     <ActivityHistory walletAddress={address!} />
                   </div>
                 </div>
+
+                {/* Cross-chain bridge - full width */}
+                <CrossChainBridgeCard />
 
                 {/* Explorer embed - full width */}
                 <ExplorerEmbed walletAddress={address} />
