@@ -21,41 +21,44 @@ export function useNexus() {
   const [isLoading, setIsLoading] = useState(false);
   const initRef = useRef(false);
 
-  // Initialize SDK when wallet is connected
-  useEffect(() => {
-    if (isConnected && walletClient && !initRef.current) {
-      initRef.current = true;
-      
-      const initSdk = async () => {
-        try {
-          // Load polyfills first and WAIT for Buffer to be ready
-          const { setupBufferPolyfill } = await import('../polyfills');
-          await setupBufferPolyfill();
-          
-          // Dynamically import Nexus SDK after polyfills are loaded
-          const { NexusSDK } = await import('@avail-project/nexus');
-          
-          console.log('Attempting to initialize Nexus SDK...');
-          const nexus = new NexusSDK({ network: 'testnet' });
-          
-          // Initialize with wallet provider
-          if (window.ethereum) {
-            await nexus.initialize(window.ethereum);
-            setSdk(nexus);
-            setIsInitialized(true);
-            console.log('Nexus SDK initialized successfully!');
-          }
-        } catch (error) {
-          console.error('Nexus SDK initialization failed:', error);
-          setInitError(error instanceof Error ? error.message : 'SDK initialization failed');
-          initRef.current = false;
-        }
-      };
-      
-      initSdk();
+  // Manual initialization function (called on-demand)
+  const initializeNexus = useCallback(async () => {
+    if (initRef.current || !isConnected) {
+      return; // Already initialized or not connected
     }
     
-    // Cleanup on disconnect
+    initRef.current = true;
+    setIsLoading(true);
+    
+    try {
+      // Load polyfills first and WAIT for Buffer to be ready
+      const { setupBufferPolyfill } = await import('../polyfills');
+      await setupBufferPolyfill();
+      
+      // Dynamically import Nexus SDK after polyfills are loaded
+      const { NexusSDK } = await import('@avail-project/nexus');
+      
+      console.log('Attempting to initialize Nexus SDK...');
+      const nexus = new NexusSDK({ network: 'testnet' });
+      
+      // Initialize with wallet provider
+      if (window.ethereum) {
+        await nexus.initialize(window.ethereum);
+        setSdk(nexus);
+        setIsInitialized(true);
+        console.log('Nexus SDK initialized successfully!');
+      }
+    } catch (error) {
+      console.error('Nexus SDK initialization failed:', error);
+      setInitError(error instanceof Error ? error.message : 'SDK initialization failed');
+      initRef.current = false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isConnected]);
+    
+  // Cleanup on disconnect
+  useEffect(() => {
     if (!isConnected) {
       setSdk(null);
       setIsInitialized(false);
@@ -63,7 +66,7 @@ export function useNexus() {
       setUnifiedBalances([]);
       initRef.current = false;
     }
-  }, [isConnected, walletClient]);
+  }, [isConnected]);
 
   // Fetch unified balances across all chains
   const fetchUnifiedBalances = useCallback(async () => {
@@ -122,6 +125,7 @@ export function useNexus() {
     isLoading,
     unifiedBalances,
     address,
+    initializeNexus,
     fetchUnifiedBalances,
     bridgeAndExecute,
   };

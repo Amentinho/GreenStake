@@ -32,7 +32,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const { toast } = useToast();
   
   // Nexus SDK for cross-chain bridging
-  const { sdk, isInitialized: isNexusReady, bridgeAndExecute } = useNexus();
+  const { sdk, isInitialized: isNexusReady, isLoading: isNexusInitializing, initializeNexus, bridgeAndExecute } = useNexus();
 
   // Separate hooks for PYUSD approval, price update, and trade execution
   const { 
@@ -538,18 +538,27 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
             </Button>
             <Button
               variant={tradeMode === 'cross-chain' ? 'default' : 'outline'}
-              onClick={() => setTradeMode('cross-chain')}
-              disabled={isTrading || !isNexusReady}
+              onClick={() => {
+                setTradeMode('cross-chain');
+                if (!isNexusReady && !isNexusInitializing) {
+                  initializeNexus();
+                }
+              }}
+              disabled={isTrading}
               className="flex-1 gap-2"
               data-testid="button-mode-crosschain"
             >
-              <Sparkles className="h-4 w-4" />
+              {isNexusInitializing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
               Cross-Chain via Nexus
             </Button>
           </div>
-          {tradeMode === 'cross-chain' && !isNexusReady && (
+          {tradeMode === 'cross-chain' && isNexusInitializing && (
             <p className="text-xs text-muted-foreground text-center">
-              Connect wallet to enable cross-chain trading
+              Initializing Nexus SDK...
             </p>
           )}
           {tradeMode === 'cross-chain' && isNexusReady && (
