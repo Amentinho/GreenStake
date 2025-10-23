@@ -68,18 +68,7 @@ export function useNexus() {
 
   // Bridge and execute cross-chain trade
   const bridgeAndExecute = useCallback(async (
-    params: Omit<BridgeAndExecuteParams, 'execute'> & {
-      execute: {
-        contractAddress: string;
-        contractAbi: any[];
-        functionName: string;
-        buildFunctionParams: any;
-        tokenApproval?: {
-          token: string;
-          amount: string;
-        };
-      };
-    }
+    params: BridgeAndExecuteParams
   ): Promise<BridgeAndExecuteResult | null> => {
     if (!sdk || !isInitialized) {
       throw new Error('Nexus SDK not initialized');
