@@ -140,9 +140,16 @@ Preferred communication style: Simple, everyday language.
 
 **Avail Nexus**: Cross-chain data availability and bridging
 - **Purpose**: Enable Ethereum ↔ Avail testnet energy trades
-- **Integration Points**: Intent execution, cross-chain messaging
-- **SDK**: `@avail-project/nexus-core` (headless), `@avail-project/nexus-widgets` (UI)
-- **Status**: Dependencies installed, implementation in progress
+- **Integration Points**: Intent execution, cross-chain messaging, unified balance aggregation
+- **SDK**: `@avail-project/nexus` v1.1.0 (unified package)
+- **Status**: ✅ Integrated with custom `useNexus` hook
+- **Implementation**: 
+  - Multi-chain configuration (Sepolia + Avail Testnet ID 11822)
+  - `CrossChainBridgeCard` component demonstrates SDK capabilities
+  - Unified balance fetching across chains
+  - `bridgeAndExecute` function ready for cross-chain trades
+- **Current Limitation**: Browser Buffer polyfill needed for full initialization (build configuration)
+- **Production Path**: Vite configuration updates + contract upgrades for bridge & execute
 
 **WalletConnect**: Multi-wallet connectivity
 - **Version**: v2

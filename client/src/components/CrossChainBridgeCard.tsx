@@ -187,10 +187,13 @@ export function CrossChainBridgeCard() {
           <div className="flex items-start gap-3">
             <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
             <div className="flex-1">
-              <div className="font-medium text-sm mb-1">Cross-Chain Bridging Demo</div>
+              <div className="font-medium text-sm mb-1">Nexus SDK Integration Status</div>
               <p className="text-xs text-muted-foreground mb-3">
-                The Nexus SDK is integrated and ready. Full bridge & execute functionality 
-                coming in Q1 2026 with contract upgrades and Avail mainnet support.
+                {isInitialized ? (
+                  <>Nexus SDK successfully initialized! Cross-chain balance aggregation active. Full bridge & execute functionality coming in Q1 2026 with contract upgrades.</>
+                ) : (
+                  <>Nexus SDK integrated (@avail-project/nexus v1.1.0). Browser polyfill configuration needed for full initialization. Architecture ready for production deployment with build configuration updates.</>
+                )}
               </p>
               <a
                 href="https://docs.availproject.org/api-reference/avail-nexus-sdk"

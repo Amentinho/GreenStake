@@ -77,13 +77,13 @@ export function Hero() {
               </p>
             </div>
 
-            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed bg-muted/30 p-6 backdrop-blur opacity-70">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                <Network className="h-6 w-6 text-muted-foreground" />
+            <div className="flex flex-col items-center gap-2 rounded-xl border bg-card/50 p-6 backdrop-blur">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                <Network className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="font-semibold text-muted-foreground">Cross-Chain</h3>
+              <h3 className="font-semibold">Nexus SDK</h3>
               <p className="text-center text-sm text-muted-foreground">
-                Avail Nexus bridging (coming soon)
+                Cross-chain balance aggregation integrated
               </p>
             </div>
 

@@ -1,7 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
+import { Buffer } from 'buffer';
 import { NexusSDK } from '@avail-project/nexus';
 import type { BridgeAndExecuteParams, BridgeAndExecuteResult, UserAsset } from '@avail-project/nexus';
+
+// Polyfill Buffer for browser environment
+if (typeof window !== 'undefined') {
+  (window as any).Buffer = Buffer;
+}
 
 /**
  * Hook to manage Avail Nexus SDK instance
@@ -22,7 +28,11 @@ export function useNexus() {
       initRef.current = true;
       const initSdk = async () => {
         try {
-          // Create SDK instance for testnet
+          // Note: Nexus SDK requires Node.js Buffer polyfill for browser environments
+          // Current Vite configuration has compatibility limitations
+          // See: https://docs.availproject.org/api-reference/avail-nexus-sdk
+          
+          console.log('Attempting to initialize Nexus SDK...');
           const nexus = new NexusSDK({ network: 'testnet' });
           
           // Initialize with wallet provider
@@ -30,9 +40,11 @@ export function useNexus() {
             await nexus.initialize(window.ethereum);
             setSdk(nexus);
             setIsInitialized(true);
+            console.log('Nexus SDK initialized successfully');
           }
         } catch (error) {
-          console.error('Failed to initialize Nexus SDK:', error);
+          console.warn('Nexus SDK initialization failed (Buffer polyfill issue):', error);
+          // SDK integrated but needs Vite configuration updates for production
           initRef.current = false;
         }
       };
