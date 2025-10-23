@@ -27,7 +27,7 @@ export function Header() {
 
         <nav className="hidden items-center gap-6 md:flex">
           <a 
-            href="https://docs.avail.so/" 
+            href="https://github.com/Amentinho/GreenStake/blob/main/README.md" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -37,7 +37,7 @@ export function Header() {
             <ExternalLink className="h-3 w-3" />
           </a>
           <a 
-            href="https://github.com" 
+            href="https://github.com/Amentinho/GreenStake/" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
