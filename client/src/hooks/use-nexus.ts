@@ -85,10 +85,13 @@ export function useNexus() {
     }
   }, [sdk, isInitialized]);
 
-  // Bridge and execute cross-chain trade
-  const bridgeAndExecute = useCallback(async (
-    params: BridgeAndExecuteParams
-  ): Promise<BridgeAndExecuteResult | null> => {
+  // Cross-chain transfer using Nexus SDK
+  const transfer = useCallback(async (params: {
+    token: string;      // Token symbol: 'ETH', 'USDC', etc.
+    amount: string;     // Amount to transfer
+    chainId: number;    // Destination chain ID  
+    recipient: string;  // Destination address
+  }): Promise<any> => {
     if (!sdk || !isInitialized) {
       throw new Error('Nexus SDK not initialized');
     }
@@ -96,22 +99,26 @@ export function useNexus() {
     try {
       setIsLoading(true);
       
-      // Set up intent approval hook
+      // Set up intent approval hook - auto-approve for demo
       sdk.setOnIntentHook(({ allow }: any) => {
-        // Auto-approve for demo - in production, show UI confirmation
+        console.log('Intent approval requested');
         allow();
       });
 
-      // Set up allowance approval hook
-      sdk.setOnAllowanceHook(({ allow }: any) => {
-        // Auto-approve minimum allowances for demo
-        allow(['min']);
+      // Set up allowance approval hook - auto-approve with minimum allowances
+      sdk.setOnAllowanceHook(({ allow, sources }: any) => {
+        console.log('Allowance approval requested for sources:', sources);
+        const allowances = sources.map(() => 'min');
+        allow(allowances);
       });
 
-      const result = await sdk.bridgeAndExecute(params);
+      console.log('Executing Nexus transfer:', params);
+      const result = await sdk.transfer(params);
+      console.log('Nexus transfer result:', result);
+      
       return result;
     } catch (error) {
-      console.error('Bridge and execute failed:', error);
+      console.error('Nexus transfer failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -127,6 +134,6 @@ export function useNexus() {
     address,
     initializeNexus,
     fetchUnifiedBalances,
-    bridgeAndExecute,
+    transfer,
   };
 }

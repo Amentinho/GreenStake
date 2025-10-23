@@ -37,7 +37,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const isCorrectNetwork = chain?.id === sepolia.id;
   
   // Nexus SDK for cross-chain bridging
-  const { sdk, isInitialized: isNexusReady, isLoading: isNexusInitializing, initializeNexus, bridgeAndExecute } = useNexus();
+  const { sdk, isInitialized: isNexusReady, isLoading: isNexusInitializing, initializeNexus, transfer: nexusTransfer } = useNexus();
 
   // Separate hooks for PYUSD approval, price update, and trade execution
   const { 
@@ -348,18 +348,19 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         description: "Bridging from Ethereum Sepolia to Avail Testnet via Nexus...",
       });
 
-      const tradeAmountWei = parseEther(tradeAmount);
-
-      // Prepare bridge and execute params for Nexus SDK
-      const result = await bridgeAndExecute({
-        fromChain: 11155111, // Sepolia chain ID
-        toChain: 11822, // Avail Testnet chain ID
-        amount: tradeAmountWei.toString(),
-        tokenAddress: '0x0000000000000000000000000000000000000000', // ETH
-        destinationAddress: walletAddress,
+      // Use Nexus SDK transfer method
+      const result = await nexusTransfer({
+        token: 'ETH',                 // Token symbol
+        amount: tradeAmount,          // Amount in ETH (string)
+        chainId: 11822,               // Avail Testnet chain ID
+        recipient: walletAddress,     // Destination address on Avail
       });
 
-      console.log('Cross-chain trade result:', result);
+      console.log('Nexus cross-chain transfer result:', result);
+
+      // Extract transaction hashes from the result (handles various SDK response formats)
+      const sepoliaTx = result?.hash || result?.txHash || result?.transactionHash || result?.sourceHash || 'pending';
+      const availTx = result?.destinationHash || result?.targetHash || result?.destHash || 'pending';
 
       // Save trade record to backend
       await api.createTrade({
@@ -368,28 +369,45 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         toChain: CHAINS.AVAIL_TESTNET,
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
-        status: 'bridging',
-        transactionHash: result?.txHash || 'pending',
+        status: 'completed',
+        transactionHash: sepoliaTx,
       });
 
+      queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
+      
       toast({
-        title: "Cross-Chain Trade Initiated! 🌉",
+        title: "Cross-Chain Transfer Success! 🌉",
         description: (
           <div className="space-y-2">
-            <p>Your ETH is being bridged to Avail Testnet via Nexus</p>
-            <p className="text-xs text-muted-foreground">
-              Track your transaction on both chain explorers
-            </p>
+            <p>Bridged {tradeAmount} ETH from Sepolia to Avail Testnet</p>
+            {sepoliaTx !== 'pending' && (
+              <a
+                href={`https://sepolia.etherscan.io/tx/${sepoliaTx}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                View Sepolia TX <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {availTx !== 'pending' && (
+              <a
+                href={`https://testnet.availscan.com/extrinsic/${availTx}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                View Avail TX <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
           </div>
         ),
       });
 
-      queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
       setTradeStatus('completed');
-      
       setTimeout(() => {
         setTradeStatus('idle');
-      }, 3000);
+      }, 5000);
 
     } catch (error) {
       console.error("Cross-chain trade error:", error);
