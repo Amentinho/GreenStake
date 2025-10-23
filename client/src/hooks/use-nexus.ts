@@ -18,6 +18,7 @@ export function useNexus() {
   const { data: walletClient } = useWalletClient();
   const [sdk, setSdk] = useState<NexusSDK | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const [unifiedBalances, setUnifiedBalances] = useState<UserAsset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const initRef = useRef(false);
@@ -45,6 +46,7 @@ export function useNexus() {
         } catch (error) {
           console.warn('Nexus SDK initialization failed (Buffer polyfill issue):', error);
           // SDK integrated but needs Vite configuration updates for production
+          setInitError('Buffer polyfill configuration needed. SDK requires Vite build setup for browser compatibility.');
           initRef.current = false;
         }
       };
@@ -56,6 +58,7 @@ export function useNexus() {
     if (!isConnected) {
       setSdk(null);
       setIsInitialized(false);
+      setInitError(null);
       setUnifiedBalances([]);
       initRef.current = false;
     }
@@ -114,6 +117,7 @@ export function useNexus() {
   return {
     sdk,
     isInitialized,
+    initError,
     isLoading,
     unifiedBalances,
     address,

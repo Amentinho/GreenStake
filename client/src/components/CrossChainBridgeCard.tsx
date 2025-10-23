@@ -9,7 +9,7 @@ import { sepolia } from "wagmi/chains";
 import { availTestnet } from "@/config/chains";
 
 export function CrossChainBridgeCard() {
-  const { isInitialized, isLoading, unifiedBalances, fetchUnifiedBalances, address } = useNexus();
+  const { isInitialized, initError, isLoading, unifiedBalances, fetchUnifiedBalances, address } = useNexus();
   const [hasLoadedBalances, setHasLoadedBalances] = useState(false);
   const { toast } = useToast();
 
@@ -92,17 +92,23 @@ export function CrossChainBridgeCard() {
         <div className="rounded-lg border bg-muted/30 p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Nexus SDK Status</span>
-            <Badge variant={isInitialized ? "default" : "secondary"}>
-              {isInitialized ? "Connected" : "Connecting..."}
+            <Badge variant={isInitialized ? "default" : initError ? "destructive" : "secondary"}>
+              {isInitialized ? "Connected" : initError ? "Config Needed" : "Connecting..."}
             </Badge>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-            <div>Network: Testnet</div>
-            <div>Chains: 2</div>
-            <div className="col-span-2 text-xs mt-1">
-              {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+          {initError ? (
+            <div className="mt-2 text-xs text-destructive bg-destructive/10 p-2 rounded">
+              {initError}
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+              <div>Network: Testnet</div>
+              <div>Chains: 2</div>
+              <div className="col-span-2 text-xs mt-1">
+                {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Supported Chains */}
@@ -138,7 +144,22 @@ export function CrossChainBridgeCard() {
         </div>
 
         {/* Unified Balances */}
-        {isInitialized && (
+        {initError ? (
+          <div className="rounded-lg border border-dashed bg-yellow-500/5 p-4">
+            <div className="flex items-start gap-3">
+              <ArrowRight className="h-5 w-5 text-yellow-600 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-medium text-sm mb-1">Integration Status</div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Avail Nexus SDK is architecturally integrated but requires Vite build configuration for browser polyfills (Buffer module). This is a known limitation of running Node.js SDKs in browser environments.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Next steps for production:</strong> Add vite-plugin-node-polyfills or configure Vite's define/optimizeDeps for Buffer support.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : isInitialized && (
           <div>
             <h4 className="text-sm font-semibold mb-3">Unified Balances</h4>
             {isLoading && !hasLoadedBalances ? (
@@ -191,8 +212,10 @@ export function CrossChainBridgeCard() {
               <p className="text-xs text-muted-foreground mb-3">
                 {isInitialized ? (
                   <>Nexus SDK successfully initialized! Cross-chain balance aggregation active. Full bridge & execute functionality coming in Q1 2026 with contract upgrades.</>
+                ) : initError ? (
+                  <>SDK architecture integrated. {initError} See status card above for details.</>
                 ) : (
-                  <>Nexus SDK integrated (@avail-project/nexus v1.1.0). Browser polyfill configuration needed for full initialization. Architecture ready for production deployment with build configuration updates.</>
+                  <>Initializing Nexus SDK...</>
                 )}
               </p>
               <a
