@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAccount, useWalletClient } from 'wagmi';
+import { useAccount } from 'wagmi';
 
 // Dynamic types - will be properly typed when SDK loads
 type UserAsset = any;
@@ -13,7 +13,6 @@ type NexusSDKType = any;
  */
 export function useNexus() {
   const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
   const [sdk, setSdk] = useState<any | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -23,8 +22,9 @@ export function useNexus() {
 
   // Manual initialization function (called on-demand)
   const initializeNexus = useCallback(async () => {
-    if (initRef.current || !isConnected || !walletClient) {
-      return; // Already initialized, not connected, or no wallet client
+    if (initRef.current || !isConnected) {
+      console.log('Nexus init check:', { initRef: initRef.current, isConnected });
+      return; // Already initialized or not connected
     }
     
     initRef.current = true;
@@ -41,18 +41,9 @@ export function useNexus() {
       console.log('Attempting to initialize Nexus SDK...');
       const nexus = new NexusSDK({ network: 'testnet' });
       
-      // Try to get the raw provider from wallet client first, fallback to window.ethereum
-      let provider = window.ethereum;
-      
-      // If using wagmi wallet client, try to get the underlying provider
-      if (walletClient?.account?.address) {
-        console.log('Using wallet client provider');
-        provider = await walletClient.transport;
-      }
-      
-      if (provider) {
-        console.log('Initializing Nexus with provider...');
-        await nexus.initialize(window.ethereum); // Always use window.ethereum for consistency
+      if (window.ethereum) {
+        console.log('Initializing Nexus with window.ethereum...');
+        await nexus.initialize(window.ethereum);
         
         // Set up allowance hook for token approvals - this must be done after initialization
         nexus.setOnAllowanceHook(async ({ allow, deny, sources }: any) => {
@@ -84,7 +75,7 @@ export function useNexus() {
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, walletClient]);
+  }, [isConnected]);
     
   // Cleanup on disconnect
   useEffect(() => {
