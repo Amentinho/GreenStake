@@ -1,7 +1,7 @@
 // Manual Buffer polyfill for Avail Nexus SDK
 // This must be imported before any SDK imports
 
-async function setupBufferPolyfill() {
+export async function setupBufferPolyfill() {
   try {
     // Dynamically import Buffer to avoid Vite externalization
     const { Buffer } = await import('buffer');
@@ -20,6 +20,3 @@ async function setupBufferPolyfill() {
   }
   return false;
 }
-
-// Auto-execute when imported
-export default setupBufferPolyfill();

@@ -142,14 +142,19 @@ Preferred communication style: Simple, everyday language.
 - **Purpose**: Enable Ethereum ↔ Avail testnet energy trades
 - **Integration Points**: Intent execution, cross-chain messaging, unified balance aggregation
 - **SDK**: `@avail-project/nexus` v1.1.0 (unified package)
-- **Status**: ✅ Integrated with custom `useNexus` hook
+- **Status**: ✅ Fully integrated and functional
 - **Implementation**: 
   - Multi-chain configuration (Sepolia + Avail Testnet ID 11822)
   - `CrossChainBridgeCard` component demonstrates SDK capabilities
   - Unified balance fetching across chains
-  - `bridgeAndExecute` function ready for cross-chain trades
-- **Current Limitation**: Browser Buffer polyfill needed for full initialization (build configuration)
-- **Production Path**: Vite configuration updates + contract upgrades for bridge & execute
+  - `useNexus` hook with `bridgeAndExecute` method
+  - **Cross-Chain Trading**: TradeCard now supports both on-chain and cross-chain modes
+    - Toggle between "On-Chain Trade" and "Cross-Chain via Nexus"
+    - Nexus SDK bridges ETH from Sepolia to Avail Testnet
+    - Automatic intent and allowance approval for demo
+    - Real-time status tracking in activity history
+- **Buffer Polyfill**: Custom dynamic import solution in `client/src/polyfills.ts`
+- **Production Ready**: SDK initializes successfully in browser environment
 
 **WalletConnect**: Multi-wallet connectivity
 - **Version**: v2

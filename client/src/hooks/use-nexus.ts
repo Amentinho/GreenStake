@@ -28,8 +28,9 @@ export function useNexus() {
       
       const initSdk = async () => {
         try {
-          // Load polyfills first
-          await import('../polyfills');
+          // Load polyfills first and WAIT for Buffer to be ready
+          const { setupBufferPolyfill } = await import('../polyfills');
+          await setupBufferPolyfill();
           
           // Dynamically import Nexus SDK after polyfills are loaded
           const { NexusSDK } = await import('@avail-project/nexus');
@@ -46,7 +47,7 @@ export function useNexus() {
           }
         } catch (error) {
           console.error('Nexus SDK initialization failed:', error);
-          setInitError(error instanceof Error ? error.message : 'SDK initialization failed. Requires vite.config.ts Buffer polyfill configuration.');
+          setInitError(error instanceof Error ? error.message : 'SDK initialization failed');
           initRef.current = false;
         }
       };
@@ -93,13 +94,13 @@ export function useNexus() {
       setIsLoading(true);
       
       // Set up intent approval hook
-      sdk.setOnIntentHook(({ allow }) => {
+      sdk.setOnIntentHook(({ allow }: any) => {
         // Auto-approve for demo - in production, show UI confirmation
         allow();
       });
 
       // Set up allowance approval hook
-      sdk.setOnAllowanceHook(({ allow }) => {
+      sdk.setOnAllowanceHook(({ allow }: any) => {
         // Auto-approve minimum allowances for demo
         allow(['min']);
       });

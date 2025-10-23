@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Network, Loader2, CheckCircle2, DollarSign, ExternalLink, TrendingUp, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
@@ -11,21 +12,27 @@ import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from 
 import { parseEther, formatUnits, parseUnits } from "viem";
 import { CONTRACT_ADDRESS, CONTRACT_ABI, CHAINS, ETH_USD_PRICE_ID, PYTH_CONTRACT_ADDRESS, PYTH_ABI, PYUSD_TESTNET, ERC20_ABI } from "@/lib/constants";
 import { EvmPriceServiceConnection } from '@pythnetwork/pyth-evm-js';
+import { useNexus } from "@/hooks/use-nexus";
 
 interface TradeCardProps {
   walletAddress: string;
   stakeCompleted: boolean;
 }
 
-type TradeStatus = 'idle' | 'fetching-price' | 'updating-price' | 'executing' | 'completed';
+type TradeStatus = 'idle' | 'fetching-price' | 'updating-price' | 'executing' | 'bridging' | 'completed';
+type TradeMode = 'on-chain' | 'cross-chain';
 
 export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
   const [tradeStatus, setTradeStatus] = useState<TradeStatus>('idle');
+  const [tradeMode, setTradeMode] = useState<TradeMode>('on-chain');
   const [tradeAmount, setTradeAmount] = useState("0.01");
   const [pyusdAmount, setPyusdAmount] = useState("0");
   const [currentEnergyPrice, setCurrentEnergyPrice] = useState<string>("0");
   const [priceUpdateData, setPriceUpdateData] = useState<string[]>([]);
   const { toast } = useToast();
+  
+  // Nexus SDK for cross-chain bridging
+  const { sdk, isInitialized: isNexusReady, bridgeAndExecute } = useNexus();
 
   // Separate hooks for PYUSD approval, price update, and trade execution
   const { 
@@ -160,7 +167,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     }
   }, [energyPriceData, tradeAmount]);
 
-  const isTrading = isApproving || isApprovalConfirming || isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price';
+  const isTrading = isApproving || isApprovalConfirming || isPriceUpdating || isPriceUpdateConfirming || isTradeExecuting || isTradeConfirming || tradeStatus === 'fetching-price' || tradeStatus === 'updating-price' || tradeStatus === 'bridging';
 
   // Handle price update confirmation - automatically proceed to trade
   useEffect(() => {
@@ -318,6 +325,78 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     });
   };
 
+  // Handle cross-chain trade via Nexus SDK
+  const handleCrossChainTrade = async () => {
+    if (!isNexusReady || !sdk) {
+      toast({
+        title: "Nexus Not Ready",
+        description: "Please wait for Nexus SDK to initialize",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setTradeStatus('bridging');
+      toast({
+        title: "Initiating Cross-Chain Trade",
+        description: "Bridging from Ethereum Sepolia to Avail Testnet via Nexus...",
+      });
+
+      const tradeAmountWei = parseEther(tradeAmount);
+
+      // Prepare bridge and execute params for Nexus SDK
+      const result = await bridgeAndExecute({
+        fromChain: 11155111, // Sepolia chain ID
+        toChain: 11822, // Avail Testnet chain ID
+        amount: tradeAmountWei.toString(),
+        tokenAddress: '0x0000000000000000000000000000000000000000', // ETH
+        destinationAddress: walletAddress,
+      });
+
+      console.log('Cross-chain trade result:', result);
+
+      // Save trade record to backend
+      await api.createTrade({
+        walletAddress,
+        fromChain: CHAINS.ETHEREUM_SEPOLIA,
+        toChain: CHAINS.AVAIL_TESTNET,
+        etkAmount: tradeAmount,
+        pyusdAmount: pyusdAmount,
+        status: 'bridging',
+        transactionHash: result?.txHash || 'pending',
+      });
+
+      toast({
+        title: "Cross-Chain Trade Initiated! 🌉",
+        description: (
+          <div className="space-y-2">
+            <p>Your ETH is being bridged to Avail Testnet via Nexus</p>
+            <p className="text-xs text-muted-foreground">
+              Track your transaction on both chain explorers
+            </p>
+          </div>
+        ),
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
+      setTradeStatus('completed');
+      
+      setTimeout(() => {
+        setTradeStatus('idle');
+      }, 3000);
+
+    } catch (error) {
+      console.error("Cross-chain trade error:", error);
+      toast({
+        title: "Cross-Chain Trade Failed",
+        description: error instanceof Error ? error.message : "Failed to bridge to Avail Testnet",
+        variant: "destructive",
+      });
+      setTradeStatus('idle');
+    }
+  };
+
   const handleTrade = async () => {
     const numAmount = parseFloat(tradeAmount);
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -351,7 +430,13 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       return;
     }
 
-    // Check PYUSD balance
+    // If cross-chain mode, use Nexus SDK
+    if (tradeMode === 'cross-chain') {
+      await handleCrossChainTrade();
+      return;
+    }
+
+    // Check PYUSD balance for on-chain trades
     const pyusdBalanceBigInt = pyusdBalance ?? BigInt(0);
     const requiredPyusd = parseUnits(pyusdAmount, 6);
     
@@ -439,6 +524,44 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           </div>
         )}
 
+        {/* Trade Mode Toggle */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={tradeMode === 'on-chain' ? 'default' : 'outline'}
+              onClick={() => setTradeMode('on-chain')}
+              disabled={isTrading}
+              className="flex-1"
+              data-testid="button-mode-onchain"
+            >
+              On-Chain Trade
+            </Button>
+            <Button
+              variant={tradeMode === 'cross-chain' ? 'default' : 'outline'}
+              onClick={() => setTradeMode('cross-chain')}
+              disabled={isTrading || !isNexusReady}
+              className="flex-1 gap-2"
+              data-testid="button-mode-crosschain"
+            >
+              <Sparkles className="h-4 w-4" />
+              Cross-Chain via Nexus
+            </Button>
+          </div>
+          {tradeMode === 'cross-chain' && !isNexusReady && (
+            <p className="text-xs text-muted-foreground text-center">
+              Connect wallet to enable cross-chain trading
+            </p>
+          )}
+          {tradeMode === 'cross-chain' && isNexusReady && (
+            <div className="flex items-center justify-center gap-2">
+              <Badge variant="outline" className="gap-1">
+                <CheckCircle2 className="h-3 w-3 text-primary" />
+                Nexus SDK Ready
+              </Badge>
+            </div>
+          )}
+        </div>
+
         {/* Chain visualization */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="rounded-lg border bg-card p-4 text-center">
@@ -452,18 +575,24 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           </div>
 
           <div className="flex flex-col items-center">
-            <ArrowRight className="h-5 w-5 text-muted-foreground opacity-50" />
-            <span className="text-xs text-muted-foreground mt-1">Planned</span>
+            <ArrowRight className={`h-5 w-5 ${tradeMode === 'cross-chain' ? 'text-primary' : 'text-muted-foreground opacity-50'}`} />
+            <span className={`text-xs mt-1 ${tradeMode === 'cross-chain' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+              {tradeMode === 'cross-chain' ? 'Nexus Bridge' : 'On-Chain'}
+            </span>
           </div>
 
-          <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-center opacity-60">
+          <div className={`rounded-lg border p-4 text-center ${tradeMode === 'cross-chain' ? 'bg-primary/5 border-primary/20' : 'border-dashed bg-muted/30 opacity-60'}`}>
             <div className="mb-2 flex items-center justify-center">
-              <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                <span className="text-xs font-bold text-muted-foreground">AVL</span>
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${tradeMode === 'cross-chain' ? 'bg-primary/10' : 'bg-muted'}`}>
+                <span className={`text-xs font-bold ${tradeMode === 'cross-chain' ? 'text-primary' : 'text-muted-foreground'}`}>AVL</span>
               </div>
             </div>
-            <p className="text-xs font-medium text-muted-foreground">Avail</p>
-            <p className="text-xs text-muted-foreground">Coming Soon</p>
+            <p className={`text-xs font-medium ${tradeMode === 'cross-chain' ? 'text-primary' : 'text-muted-foreground'}`}>
+              Avail {tradeMode === 'cross-chain' && 'Testnet'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {tradeMode === 'cross-chain' ? 'Active' : 'Select Mode'}
+            </p>
           </div>
         </div>
 
@@ -522,10 +651,15 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         <Button
           onClick={handleTrade}
           className="w-full gap-2"
-          disabled={isDisabled}
+          disabled={isDisabled || (tradeMode === 'cross-chain' && !isNexusReady)}
           data-testid="button-trade"
         >
-          {tradeStatus === 'fetching-price' ? (
+          {tradeStatus === 'bridging' ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Bridging to Avail...
+            </>
+          ) : tradeStatus === 'fetching-price' ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Fetching Price...
@@ -553,12 +687,12 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
           ) : tradeStatus === 'completed' ? (
             <>
               <CheckCircle2 className="h-4 w-4" />
-              Trade Complete
+              {tradeMode === 'cross-chain' ? 'Bridge Complete' : 'Trade Complete'}
             </>
           ) : (
             <>
-              <Network className="h-4 w-4" />
-              Execute with Pyth Oracle
+              {tradeMode === 'cross-chain' ? <Sparkles className="h-4 w-4" /> : <Network className="h-4 w-4" />}
+              {tradeMode === 'cross-chain' ? 'Bridge to Avail via Nexus' : 'Execute with Pyth Oracle'}
             </>
           )}
         </Button>
