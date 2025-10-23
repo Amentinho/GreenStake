@@ -426,17 +426,21 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       <CardContent className="space-y-6">
         {/* Live price indicator */}
         {currentEnergyPrice !== "0" && (
-          <div className="rounded-lg border bg-primary/5 p-3">
+          <div className="rounded-lg border bg-primary/5 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Live Energy Price</span>
+                <span className="text-sm font-medium">ETH/USD Price (Energy Proxy)</span>
               </div>
-              <span className="text-lg font-bold text-primary">${currentEnergyPrice}/ETH</span>
+              <span className="text-lg font-bold text-primary" data-testid="text-energy-price">${currentEnergyPrice}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Powered by Pyth Network Oracle
-            </p>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p className="font-medium">Pyth Network Oracle • Real-time on-chain pricing</p>
+              <p>
+                Uses ETH/USD feed as proxy for energy costs (1 ETH = ${currentEnergyPrice} energy value). 
+                Updates every ~1 second on-chain. Fallback: $3000 if oracle unavailable.
+              </p>
+            </div>
           </div>
         )}
 
@@ -505,7 +509,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
               data-testid="input-pyusd-amount"
             />
             <p className="text-xs text-muted-foreground">
-              Auto-calculated from live oracle price
+              Auto-calculated: {tradeAmount || 0} ETH × ${currentEnergyPrice} = {pyusdAmount} PYUSD
             </p>
           </div>
         </div>
