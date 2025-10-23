@@ -3,11 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Loader2, Lock, ExternalLink } from "lucide-react";
+import { Shield, Loader2, Lock, ExternalLink, ArrowUpFromLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
 import { parseEther } from "viem";
 import { CONTRACT_ADDRESS, CONTRACT_ABI, MIN_STAKE_WEI } from "@/lib/constants";
 
@@ -19,23 +19,58 @@ interface StakeCardProps {
 
 export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: StakeCardProps) {
   const [amount, setAmount] = useState("0.01");
+  const [unstakeAmount, setUnstakeAmount] = useState("0.01");
   const { toast } = useToast();
   
+  // Stake transaction hooks
   const { data: hash, writeContract, isPending: isWriting, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
 
-  const isStaking = isWriting || isConfirming;
+  // Unstake transaction hooks
+  const { 
+    data: unstakeHash, 
+    writeContract: writeUnstake, 
+    isPending: isUnstakeWriting, 
+    error: unstakeWriteError 
+  } = useWriteContract();
+  const { 
+    isLoading: isUnstakeConfirming, 
+    isSuccess: isUnstakeConfirmed 
+  } = useWaitForTransactionReceipt({
+    hash: unstakeHash,
+  });
 
-  // Handle successful transaction
+  // Read staked balance from contract
+  const { data: stakedBalance, refetch: refetchBalance } = useReadContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: CONTRACT_ABI,
+    functionName: 'getActiveStakeBalance',
+    args: [walletAddress as `0x${string}`],
+    query: {
+      refetchInterval: 3000,
+    },
+  });
+
+  const isStaking = isWriting || isConfirming;
+  const isUnstaking = isUnstakeWriting || isUnstakeConfirming;
+
+  // Handle successful stake transaction
   useEffect(() => {
     if (isConfirmed && hash) {
       handleTransactionSuccess(hash);
     }
   }, [isConfirmed, hash]);
 
-  // Handle write errors
+  // Handle successful unstake transaction
+  useEffect(() => {
+    if (isUnstakeConfirmed && unstakeHash) {
+      handleUnstakeSuccess(unstakeHash);
+    }
+  }, [isUnstakeConfirmed, unstakeHash]);
+
+  // Handle stake write errors
   useEffect(() => {
     if (writeError) {
       toast({
@@ -47,6 +82,19 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
       });
     }
   }, [writeError]);
+
+  // Handle unstake write errors
+  useEffect(() => {
+    if (unstakeWriteError) {
+      toast({
+        title: "Unstake Failed",
+        description: unstakeWriteError.message.includes("user rejected") 
+          ? "Transaction was rejected"
+          : "Failed to submit unstake transaction. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [unstakeWriteError]);
 
   const handleTransactionSuccess = async (txHash: string) => {
     try {
@@ -78,11 +126,35 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
 
       // Invalidate queries to refresh activity history and contract balances
       queryClient.invalidateQueries({ queryKey: ['/api/stake', walletAddress] });
+      refetchBalance();
       
       onStakeComplete();
     } catch (error) {
       console.error("Failed to save stake:", error);
     }
+  };
+
+  const handleUnstakeSuccess = async (txHash: string) => {
+    toast({
+      title: "Unstake Successful! ✅",
+      description: (
+        <div className="space-y-2">
+          <p>Withdrawn {unstakeAmount} ETH from contract</p>
+          <a
+            href={`https://sepolia.etherscan.io/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            View on Etherscan <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      ),
+    });
+
+    // Refresh balances
+    queryClient.invalidateQueries({ queryKey: ['/api/stake', walletAddress] });
+    refetchBalance();
   };
 
   const handleStake = async () => {
@@ -124,7 +196,47 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
     }
   };
 
-  const isDisabled = !forecastValue || isStaking;
+  const handleUnstake = async () => {
+    const numUnstakeAmount = parseFloat(unstakeAmount);
+    if (isNaN(numUnstakeAmount) || numUnstakeAmount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount to unstake",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const stakedBalanceEth = stakedBalance ? Number(stakedBalance) / 1e18 : 0;
+    if (numUnstakeAmount > stakedBalanceEth) {
+      toast({
+        title: "Insufficient Balance",
+        description: `You only have ${stakedBalanceEth.toFixed(4)} ETH staked`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Call the smart contract withdraw function
+      writeUnstake({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: 'withdraw',
+        args: [parseEther(unstakeAmount)],
+      });
+    } catch (error) {
+      console.error("Unstake error:", error);
+      toast({
+        title: "Unstake Failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const isDisabled = !forecastValue || isStaking || isUnstaking;
+  const stakedBalanceEth = stakedBalance ? (Number(stakedBalance) / 1e18).toFixed(4) : "0.00";
 
   return (
     <Card>
@@ -201,6 +313,56 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
             </>
           )}
         </Button>
+
+        {/* Unstake Section */}
+        {Number(stakedBalanceEth) > 0 && (
+          <div className="border-t pt-6 space-y-4">
+            <div>
+              <Label htmlFor="unstake-amount" className="text-sm font-medium">Unstake / Withdraw</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Current staked balance: <span className="font-mono font-semibold">{stakedBalanceEth} ETH</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Input
+                id="unstake-amount"
+                type="number"
+                step="0.01"
+                value={unstakeAmount}
+                onChange={(e) => setUnstakeAmount(e.target.value)}
+                placeholder="0.01"
+                disabled={isStaking || isUnstaking}
+                data-testid="input-unstake-amount"
+              />
+            </div>
+
+            <Button
+              onClick={handleUnstake}
+              className="w-full gap-2"
+              variant="outline"
+              disabled={isStaking || isUnstaking || Number(stakedBalanceEth) === 0}
+              data-testid="button-unstake"
+            >
+              {isUnstakeWriting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Confirm in Wallet...
+                </>
+              ) : isUnstakeConfirming ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing Withdrawal...
+                </>
+              ) : (
+                <>
+                  <ArrowUpFromLine className="h-4 w-4" />
+                  Withdraw from Contract
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
