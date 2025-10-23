@@ -253,7 +253,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       await api.createTrade({
         walletAddress,
         fromChain: CHAINS.ETHEREUM_SEPOLIA,
-        toChain: CHAINS.AVAIL_TESTNET,
+        toChain: CHAINS.BASE_SEPOLIA,
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'executed',
@@ -305,7 +305,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       functionName: 'executeTrade',
       args: [
         CHAINS.ETHEREUM_SEPOLIA,
-        CHAINS.AVAIL_TESTNET,
+        CHAINS.BASE_SEPOLIA,
         tradeAmountWei,
         BigInt(Math.floor(parseFloat(pyusdAmount) * 1e6)), // PYUSD has 6 decimals
       ],
@@ -345,15 +345,15 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       setTradeStatus('bridging');
       toast({
         title: "Initiating Cross-Chain Trade",
-        description: "Bridging from Ethereum Sepolia to Avail Testnet via Nexus...",
+        description: "Bridging from Ethereum Sepolia to Base Sepolia via Avail Nexus...",
       });
 
-      // Use Nexus SDK transfer method
+      // Use Nexus SDK transfer method - bridging from Sepolia to Base Sepolia
       const result = await nexusTransfer({
         token: 'ETH',                 // Token symbol
         amount: tradeAmount,          // Amount in ETH (string)
-        chainId: 11822,               // Avail Testnet chain ID
-        recipient: walletAddress,     // Destination address on Avail
+        chainId: 84532,               // Base Sepolia chain ID
+        recipient: walletAddress,     // Destination address on Base Sepolia
       });
 
       console.log('Nexus cross-chain transfer result:', result);
@@ -366,7 +366,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       await api.createTrade({
         walletAddress,
         fromChain: CHAINS.ETHEREUM_SEPOLIA,
-        toChain: CHAINS.AVAIL_TESTNET,
+        toChain: CHAINS.BASE_SEPOLIA,
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'completed',
@@ -379,7 +379,7 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         title: "Cross-Chain Transfer Success! 🌉",
         description: (
           <div className="space-y-2">
-            <p>Bridged {tradeAmount} ETH from Sepolia to Avail Testnet</p>
+            <p>Bridged {tradeAmount} ETH from Sepolia to Base Sepolia via Avail Nexus</p>
             {sepoliaTx !== 'pending' && (
               <a
                 href={`https://sepolia.etherscan.io/tx/${sepoliaTx}`}
@@ -392,12 +392,12 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
             )}
             {availTx !== 'pending' && (
               <a
-                href={`https://testnet.availscan.com/extrinsic/${availTx}`}
+                href={`https://sepolia.basescan.org/tx/${availTx}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-primary hover:underline"
               >
-                View Avail TX <ExternalLink className="h-3 w-3" />
+                View Base Sepolia TX <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>

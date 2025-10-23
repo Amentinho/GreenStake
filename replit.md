@@ -138,22 +138,27 @@ Preferred communication style: Simple, everyday language.
 
 ### Web3 Infrastructure
 
-**Avail Nexus**: Cross-chain data availability and bridging
-- **Purpose**: Enable Ethereum ↔ Avail testnet energy trades
-- **Integration Points**: Intent execution, cross-chain messaging, unified balance aggregation
+**Avail Nexus**: Cross-chain bridging powered by Avail data availability
+- **Purpose**: Enable cross-chain energy trades between EVM chains using Avail as underlying infrastructure
+- **How It Works**: Nexus bridges assets between EVM chains (e.g., Sepolia ↔ Base Sepolia), using Avail for data availability and settlement
 - **SDK**: `@avail-project/nexus` v1.1.0 (unified package)
 - **Status**: ✅ Fully integrated and functional
+- **Supported Testnet Chains**:
+  - Sepolia (11155111) - Source chain
+  - Base Sepolia (84532) - Current destination chain
+  - Polygon Amoy (80002)
+  - Arbitrum Sepolia (421614)
+  - Optimism Sepolia (11155420)
 - **Implementation**: 
-  - Multi-chain configuration (Sepolia + Avail Testnet ID 11822)
-  - `CrossChainBridgeCard` component demonstrates SDK capabilities
-  - Unified balance fetching across chains
-  - `useNexus` hook with `bridgeAndExecute` method
-  - **Cross-Chain Trading**: TradeCard now supports both on-chain and cross-chain modes
-    - Toggle between "On-Chain Trade" and "Cross-Chain via Nexus"
-    - Nexus SDK bridges ETH from Sepolia to Avail Testnet
+  - Lazy SDK initialization (loads only when cross-chain button clicked)
+  - `useNexus` hook with `transfer()` method
+  - Async Buffer polyfill for browser compatibility (`client/src/polyfills.ts`)
+  - **Cross-Chain Trading**: TradeCard supports both on-chain and cross-chain modes
+    - Toggle between "On-Chain Trade" (Sepolia only) and "Cross-Chain via Nexus"
+    - Nexus SDK bridges ETH from Sepolia to Base Sepolia
     - Automatic intent and allowance approval for demo
-    - Real-time status tracking in activity history
-- **Buffer Polyfill**: Custom dynamic import solution in `client/src/polyfills.ts`
+    - Dual explorer links (Sepolia Etherscan + Base Sepolia Basescan)
+    - Transaction hash tracking for both source and destination chains
 - **Production Ready**: SDK initializes successfully in browser environment
 
 **WalletConnect**: Multi-wallet connectivity

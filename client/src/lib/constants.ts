@@ -22,7 +22,7 @@ export const PYUSD_TESTNET = '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9'; // Re
 // Chain identifiers
 export const CHAINS = {
   ETHEREUM_SEPOLIA: 'ethereum-sepolia',
-  AVAIL_TESTNET: 'avail-testnet',
+  BASE_SEPOLIA: 'base-sepolia',
 } as const;
 
 // Transaction status types
