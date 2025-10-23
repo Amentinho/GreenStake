@@ -1,8 +1,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExternalLink, Search } from "lucide-react";
+import { ExternalLink, Search, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function ExplorerEmbed() {
+interface ExplorerEmbedProps {
+  walletAddress?: string;
+}
+
+export function ExplorerEmbed({ walletAddress }: ExplorerEmbedProps) {
+  const explorerUrl = walletAddress 
+    ? `https://eth-sepolia.blockscout.com/address/${walletAddress}`
+    : "https://eth-sepolia.blockscout.com/";
+
   return (
     <Card>
       <CardHeader>
@@ -23,7 +31,7 @@ export function ExplorerEmbed() {
             data-testid="button-open-explorer"
           >
             <a 
-              href="https://eth-sepolia.blockscout.com/" 
+              href={explorerUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               className="gap-1"
@@ -35,17 +43,44 @@ export function ExplorerEmbed() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-lg border-2 border-primary/30 overflow-hidden bg-card">
-          <iframe
-            src="https://eth-sepolia.blockscout.com/"
-            title="GreenStake Transaction Explorer"
-            className="w-full h-96 border-0"
-            data-testid="iframe-explorer"
-          />
+        <div className="rounded-lg border-2 border-dashed border-primary/30 bg-muted/30 p-8 space-y-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">View Your Transactions on Blockscout</p>
+              <p className="text-xs text-muted-foreground">
+                Blockscout doesn't support iframe embedding due to security policies (CORS). 
+                Click "Open" above to view your wallet's transaction history, token balances, and smart contract interactions on Sepolia testnet.
+              </p>
+            </div>
+          </div>
+          
+          <Button 
+            asChild 
+            className="w-full gap-2"
+            data-testid="button-view-wallet"
+          >
+            <a 
+              href={explorerUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              <Search className="h-4 w-4" />
+              View {walletAddress ? 'Your Wallet' : 'Explorer'} on Blockscout
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground text-center">
-          All transactions are verified and viewable on Blockscout
-        </p>
+        
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">What you can see on Blockscout:</p>
+          <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+            <li>• All your stake, trade, and withdrawal transactions</li>
+            <li>• PYUSD token transfers and approvals</li>
+            <li>• Smart contract interactions with GreenStakeDEX V3</li>
+            <li>• Gas costs and transaction status</li>
+          </ul>
+        </div>
       </CardContent>
     </Card>
   );

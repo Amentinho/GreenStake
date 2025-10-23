@@ -74,7 +74,7 @@ export default function Home() {
                 </div>
 
                 {/* Explorer embed - full width */}
-                <ExplorerEmbed />
+                <ExplorerEmbed walletAddress={address} />
               </div>
             )}
           </div>
