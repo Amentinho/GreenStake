@@ -49,7 +49,7 @@ export function Hero() {
               asChild
               data-testid="button-learn-more"
             >
-              <a href="https://docs.avail.so/" target="_blank" rel="noopener noreferrer">
+              <a href="https://github.com/Amentinho/GreenStake/blob/main/README.md" target="_blank" rel="noopener noreferrer">
                 Learn More
               </a>
             </Button>
