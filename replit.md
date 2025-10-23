@@ -77,14 +77,59 @@ Preferred communication style: Simple, everyday language.
 
 ### Smart Contract Architecture
 
-**Contract Setup**: Placeholder configuration for Remix deployment
-- **Language**: Solidity (ABI provided in `client/src/abis/GreenStakeABI.json`)
-- **Functions**: Stake (ETK with energy need), Trade (cross-chain energy exchange)
-- **Events**: `Staked`, `Traded` for transaction tracking
-- **Network**: Sepolia testnet deployment pending
-- **Note**: `CONTRACT_ADDRESS` constant needs update post-deployment
+**Current Deployment**: GreenStakeDEX V1 on Sepolia
+- **Address**: `0x4B3E4f81B1Bc7B48E3D419860A10a953f3217D26`
+- **Language**: Solidity 0.8.20+
+- **Network**: Sepolia testnet
+- **Oracle**: Pyth Network (`0x2880aB155794e7179c9eE2e38200202908C17B43`)
 
-**ZKP Integration**: Semaphore protocol (planned)
+**Contract Versions Available**:
+- **V1** (`contracts/GreenStakeDEX.sol`) - Initial deployment with Pyth integration
+  - ✅ Staking with energy needs
+  - ✅ Pyth oracle price feeds
+  - ✅ Cross-chain trade execution
+  - ❌ No withdraw function
+  - ❌ Required Pyth oracle (no fallback)
+  
+- **V2** (`contracts/GreenStakeDEX_V2.sol`) - MVP improvements
+  - ✅ All V1 features
+  - ✅ **Withdraw/unstake function** - Users can withdraw staked ETH
+  - ✅ **Optional Pyth oracle** - Fallback to $3000 USD if oracle fails
+  - ✅ **Gas optimizations** - Explicit gas limits prevent errors
+  - ✅ **Better error messages** - Clear failure reasons
+  - 📋 Deployment guide: `contracts/DEPLOY_V2_GUIDE.md`
+  
+- **V3** (`contracts/GreenStakeDEX_V3.sol`) - Production-ready
+  - ✅ All V2 features
+  - ✅ **Mapping-based storage** - 96% gas savings on reads
+  - ✅ **Reentrancy guards** - Security on all state changes
+  - ✅ **Real PYUSD transfers** - On-chain ERC20 settlement
+  - ✅ **Ownable2Step** - Safe two-step ownership transfer
+  - ✅ **DAO/Multisig ready** - Can transfer to Gnosis Safe
+  - ✅ **PYUSD withdrawal** - Owner can withdraw for settlement
+  - 📋 Deployment guide: `contracts/DEPLOY_V3_GUIDE.md`
+  - 📊 Full comparison: `contracts/VERSION_COMPARISON.md`
+
+**Core Functions**:
+- `stake(uint256 energyNeed)` - Stake ETH with energy commitment
+- `executeTrade(...)` - Execute cross-chain energy trade
+- `withdraw(uint256 amount)` - Withdraw staked ETH (V2+)
+- `updatePriceFeeds(bytes[])` - Update Pyth oracle prices
+- `getCurrentEnergyPrice()` - Get latest energy price from oracle
+
+**Events**:
+- `Staked(user, stakeId, amount, energyNeed, timestamp)`
+- `TradeExecuted(user, tradeId, fromChain, toChain, etkAmount, pyusdAmount, energyPrice, timestamp)`
+- `Withdrawn(user, amount, timestamp)` (V2+)
+- `PriceUpdated(priceId, price, timestamp)`
+
+**Security Features** (V3):
+- ReentrancyGuard on all state-changing functions
+- Two-step ownership transfer (prevents accidental transfers)
+- ERC20 token transfer verification
+- Oracle fallback mechanism
+
+**ZKP Integration**: Semaphore protocol (planned future enhancement)
 - **Purpose**: Anonymous staking without revealing wallet identity
 - **Implementation Status**: Dependencies installed, integration pending
 
