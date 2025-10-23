@@ -246,123 +246,145 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
             <Shield className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <CardTitle>ZKP Staking</CardTitle>
-            <CardDescription>Stake energy needs privately</CardDescription>
+            <CardTitle>Energy Staking</CardTitle>
+            <CardDescription>Commit ETH for energy needs</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="stake-amount">Amount (ETH)</Label>
-          <Input
-            id="stake-amount"
-            type="number"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.01"
-            disabled={isDisabled}
-            data-testid="input-stake-amount"
-          />
-          <p className="text-xs text-muted-foreground">
-            Minimum: 0.01 ETH on Sepolia testnet
-          </p>
-        </div>
-
-        {forecastValue && (
-          <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Energy Need</span>
-              <span className="font-mono font-semibold">{forecastValue} kWh</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Stake Amount</span>
-              <span className="font-mono font-semibold">{amount} ETH</span>
-            </div>
+        {/* Current Staked Balance - Always Visible */}
+        <div className="rounded-lg border bg-muted/50 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Your Staked Balance</span>
+            <span className="font-mono text-lg font-bold text-primary" data-testid="text-staked-balance">
+              {stakedBalanceEth} ETH
+            </span>
           </div>
-        )}
-
-        <div className="flex items-start gap-2 rounded-lg border bg-card p-3">
-          <Lock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Your stake is recorded on-chain with your wallet address visible on Sepolia. 
-            Zero-knowledge proof integration (Semaphore protocol) is planned for future privacy.
-          </p>
-        </div>
-
-        <Button
-          onClick={handleStake}
-          className="w-full gap-2"
-          disabled={isDisabled}
-          data-testid="button-stake"
-        >
-          {isWriting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Confirm in Wallet...
-            </>
-          ) : isConfirming ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Confirming on Sepolia...
-            </>
-          ) : (
-            <>
-              <Shield className="h-4 w-4" />
-              Stake Energy Commitment
-            </>
+          {forecastValue && Number(stakedBalanceEth) > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Committed for {forecastValue} kWh energy needs
+            </p>
           )}
-        </Button>
+        </div>
 
-        {/* Unstake Section */}
-        {Number(stakedBalanceEth) > 0 && (
-          <div className="border-t pt-6 space-y-4">
-            <div>
-              <Label htmlFor="unstake-amount" className="text-sm font-medium">Unstake / Withdraw</Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Current staked balance: <span className="font-mono font-semibold">{stakedBalanceEth} ETH</span>
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Input
-                id="unstake-amount"
-                type="number"
-                step="0.01"
-                value={unstakeAmount}
-                onChange={(e) => setUnstakeAmount(e.target.value)}
-                placeholder="0.01"
-                disabled={isStaking || isUnstaking}
-                data-testid="input-unstake-amount"
-              />
-            </div>
-
-            <Button
-              onClick={handleUnstake}
-              className="w-full gap-2"
-              variant="outline"
-              disabled={isStaking || isUnstaking || Number(stakedBalanceEth) === 0}
-              data-testid="button-unstake"
-            >
-              {isUnstakeWriting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Confirm in Wallet...
-                </>
-              ) : isUnstakeConfirming ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing Withdrawal...
-                </>
-              ) : (
-                <>
-                  <ArrowUpFromLine className="h-4 w-4" />
-                  Withdraw from Contract
-                </>
-              )}
-            </Button>
+        {/* Stake More Section */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="stake-amount">Add to Stake (ETH)</Label>
+            <Input
+              id="stake-amount"
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.01"
+              disabled={isDisabled}
+              data-testid="input-stake-amount"
+            />
+            <p className="text-xs text-muted-foreground">
+              Minimum: 0.01 ETH • Energy need from AI forecast: {forecastValue || 0} kWh
+            </p>
           </div>
-        )}
+
+          {forecastValue && (
+            <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">This Stake</span>
+                <span className="font-mono font-semibold">{amount} ETH</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Energy Coverage</span>
+                <span className="font-mono font-semibold">{forecastValue} kWh</span>
+              </div>
+              <div className="flex items-center justify-between text-sm border-t pt-2">
+                <span className="text-muted-foreground font-medium">Total After Stake</span>
+                <span className="font-mono font-semibold text-primary">
+                  {(Number(stakedBalanceEth) + Number(amount || 0)).toFixed(4)} ETH
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 rounded-lg border bg-card p-3">
+            <Lock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your stake is recorded on-chain with your wallet address visible on Sepolia. 
+              Zero-knowledge proof integration (Semaphore protocol) is planned for future privacy.
+            </p>
+          </div>
+
+          <Button
+            onClick={handleStake}
+            className="w-full gap-2"
+            disabled={isDisabled}
+            data-testid="button-stake"
+          >
+            {isWriting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Confirm in Wallet...
+              </>
+            ) : isConfirming ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Confirming on Sepolia...
+              </>
+            ) : (
+              <>
+                <Shield className="h-4 w-4" />
+                Stake Energy Commitment
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Withdraw Section - Always Visible */}
+        <div className="border-t pt-6 space-y-4">
+          <div>
+            <Label htmlFor="unstake-amount" className="text-sm font-medium">Withdraw from Stake</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Withdraw ETH back to your wallet (reduces your energy commitment)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Input
+              id="unstake-amount"
+              type="number"
+              step="0.01"
+              value={unstakeAmount}
+              onChange={(e) => setUnstakeAmount(e.target.value)}
+              placeholder="0.01"
+              disabled={isStaking || isUnstaking || Number(stakedBalanceEth) === 0}
+              data-testid="input-unstake-amount"
+            />
+          </div>
+
+          <Button
+            onClick={handleUnstake}
+            className="w-full gap-2"
+            variant="outline"
+            disabled={isStaking || isUnstaking || Number(stakedBalanceEth) === 0}
+            data-testid="button-unstake"
+          >
+            {isUnstakeWriting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Confirm in Wallet...
+              </>
+            ) : isUnstakeConfirming ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processing Withdrawal...
+              </>
+            ) : (
+              <>
+                <ArrowUpFromLine className="h-4 w-4" />
+                Withdraw from Contract
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
