@@ -332,21 +332,76 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
 
   // Handle cross-chain trade via Nexus SDK
   const handleCrossChainTrade = async () => {
-    // Verify Nexus SDK is ready
-    if (!isNexusReady || !sdk) {
+    if (!chain) {
       toast({
-        title: "Nexus Not Ready",
-        description: "Please wait for Nexus SDK to initialize",
+        title: "No Network",
+        description: "Please connect your wallet",
         variant: "destructive",
       });
       return;
     }
 
-    // Verify user is on Sepolia network
-    if (!isCorrectNetwork || chain?.id !== sepolia.id) {
+    // Define supported mainnet chains for Nexus SDK (Arcana CA)
+    const supportedMainnetChains = [1, 137, 42161, 10, 8453]; // Ethereum, Polygon, Arbitrum, Optimism, Base
+    const isMainnetSupported = supportedMainnetChains.includes(chain.id);
+    
+    // Check if we're on a testnet chain
+    const testnetChains = [11155111, 84532, 80002, 421614, 11155420]; // Sepolia, Base Sepolia, Polygon Amoy, Arbitrum Sepolia, Optimism Sepolia
+    const isTestnet = testnetChains.includes(chain.id);
+    
+    if (isTestnet) {
+      // Testnet chains are not supported by Nexus SDK (Arcana CA limitation)
       toast({
-        title: "Wrong Network",
-        description: "Please switch to Sepolia testnet in your wallet to use cross-chain bridging",
+        title: "Testnet Bridging Limitation",
+        description: (
+          <div className="space-y-2">
+            <p>The Nexus SDK only supports mainnet chains (Ethereum, Polygon, Arbitrum, Base, etc.).</p>
+            <p className="font-semibold mt-2">For Sepolia → Base Sepolia bridging, use:</p>
+            <a
+              href="https://bridge.base.org/deposit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-primary hover:underline font-semibold"
+            >
+              Official Base Bridge <ExternalLink className="h-3 w-3" />
+            </a>
+            <p className="text-xs mt-2">Nexus integration will work seamlessly on mainnet!</p>
+          </div>
+        ),
+      });
+
+      // Save a record showing testnet bridge was blocked
+      await api.createTrade({
+        walletAddress,
+        fromChain: CHAINS.ETHEREUM_SEPOLIA,
+        toChain: CHAINS.BASE_SEPOLIA,
+        etkAmount: tradeAmount,
+        pyusdAmount: pyusdAmount,
+        status: 'failed',
+        transactionHash: 'testnet-not-supported-by-nexus-sdk',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
+      setTradeStatus('idle');
+      return;
+    }
+
+    // Check if current chain is supported by Nexus SDK
+    if (!isMainnetSupported) {
+      toast({
+        title: "Unsupported Network",
+        description: `Please switch to a supported network: Ethereum, Polygon, Arbitrum, Optimism, or Base mainnet`,
+        variant: "destructive",
+      });
+      setTradeStatus('idle');
+      return;
+    }
+
+    // For supported mainnet chains, proceed with Nexus SDK
+    if (!isNexusReady || !sdk) {
+      toast({
+        title: "Nexus Not Ready",
+        description: "Please wait for Nexus SDK to initialize, or refresh the page",
         variant: "destructive",
       });
       return;
@@ -356,59 +411,62 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       setTradeStatus('bridging');
       toast({
         title: "Initiating Cross-Chain Trade",
-        description: "Bridging from Ethereum Sepolia to Base Sepolia...",
+        description: "Bridging via Nexus SDK...",
       });
 
-      // Use Nexus SDK transfer method - bridging from Sepolia to Base Sepolia
+      // Determine destination chain (for demo, bridge to Base if on Ethereum, vice versa)
+      const destChainId = chain.id === 1 ? 8453 : 1; // Base if on Ethereum, Ethereum if on other chain
+
+      // Use Nexus SDK transfer method for mainnet chains
       const result = await nexusTransfer({
-        token: 'ETH',                 // Token symbol
-        amount: tradeAmount,          // Amount in ETH (string)
-        chainId: 84532,               // Base Sepolia chain ID
-        recipient: walletAddress,     // Destination address on Base Sepolia
+        token: 'ETH',
+        amount: tradeAmount,
+        chainId: destChainId,
+        recipient: walletAddress,
       });
 
       console.log('Nexus cross-chain transfer result:', result);
 
-      // Extract transaction hashes from the result (handles various SDK response formats)
-      const sepoliaTx = result?.hash || result?.txHash || result?.transactionHash || result?.sourceHash || 'pending';
-      const availTx = result?.destinationHash || result?.targetHash || result?.destHash || 'pending';
+      // Extract transaction hashes
+      const sourceTx = result?.hash || result?.txHash || result?.transactionHash || result?.sourceHash || 'pending';
+      const destTx = result?.destinationHash || result?.targetHash || result?.destHash || 'pending';
 
-      // Save trade record to backend
+      // Save successful trade record with actual chain IDs
       await api.createTrade({
         walletAddress,
-        fromChain: CHAINS.ETHEREUM_SEPOLIA,
-        toChain: CHAINS.BASE_SEPOLIA,
+        fromChain: chain.id,
+        toChain: destChainId,
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'completed',
-        transactionHash: sepoliaTx,
+        transactionHash: sourceTx,
       });
 
       queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
       
       toast({
-        title: "Cross-Chain Transfer Success! 🌉",
+        title: "Cross-Chain Transfer Success!",
         description: (
           <div className="space-y-2">
-            <p>Bridged {tradeAmount} ETH from Sepolia to Base Sepolia</p>
-            {sepoliaTx !== 'pending' && (
+            <p>Bridged {tradeAmount} ETH via Nexus</p>
+            {sourceTx !== 'pending' && (
               <a
-                href={`https://sepolia.etherscan.io/tx/${sepoliaTx}`}
+                href={`https://etherscan.io/tx/${sourceTx}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-primary hover:underline"
               >
-                View Sepolia TX <ExternalLink className="h-3 w-3" />
+                View Source TX <ExternalLink className="h-3 w-3" />
               </a>
             )}
-            {availTx !== 'pending' && (
+            {destTx !== 'pending' && (
               <a
-                href={`https://sepolia.basescan.org/tx/${availTx}`}
+                href={`https://basescan.org/tx/${destTx}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-primary hover:underline"
               >
-                View Base Sepolia TX <ExternalLink className="h-3 w-3" />
+                View Destination TX <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
@@ -416,15 +474,27 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       });
 
       setTradeStatus('completed');
-      setTimeout(() => {
-        setTradeStatus('idle');
-      }, 5000);
+      setTimeout(() => setTradeStatus('idle'), 5000);
 
     } catch (error) {
       console.error("Cross-chain trade error:", error);
+      
+      // Save failed trade record with actual chain info
+      await api.createTrade({
+        walletAddress,
+        fromChain: chain.id,
+        toChain: chain.id === 1 ? 8453 : 1,
+        etkAmount: tradeAmount,
+        pyusdAmount: pyusdAmount,
+        status: 'failed',
+        transactionHash: error instanceof Error ? `error-${error.message}` : 'error-unknown',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
+      
       toast({
         title: "Cross-Chain Trade Failed",
-        description: error instanceof Error ? error.message : "Failed to bridge to Base Sepolia",
+        description: error instanceof Error ? error.message : "Failed to bridge",
         variant: "destructive",
       });
       setTradeStatus('idle');

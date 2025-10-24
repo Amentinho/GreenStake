@@ -48,7 +48,7 @@ export function CrossChainBridgeCard() {
             <CardTitle>Cross-Chain Bridge</CardTitle>
           </div>
           <CardDescription>
-            Avail Nexus integration for unified cross-chain balances
+            Cross-chain balance viewer (Mainnet chains only)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -83,7 +83,7 @@ export function CrossChainBridgeCard() {
           </Button>
         </div>
         <CardDescription>
-          View unified balances across Ethereum Sepolia and Avail Testnet via Avail Nexus SDK
+          Cross-chain bridging powered by Nexus SDK (supports Ethereum, Polygon, Arbitrum, Base, and other mainnet chains)
         </CardDescription>
       </CardHeader>
 
@@ -151,7 +151,7 @@ export function CrossChainBridgeCard() {
               <div className="flex-1">
                 <div className="font-medium text-sm mb-1">Integration Status</div>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Avail Nexus SDK is architecturally integrated but requires Vite build configuration for browser polyfills (Buffer module). This is a known limitation of running Node.js SDKs in browser environments.
+                  Nexus SDK integration is available for mainnet chains. For testnet bridging (Sepolia, Base Sepolia), direct chain transfers are used instead of chain abstraction.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <strong>Next steps for production:</strong> Add vite-plugin-node-polyfills or configure Vite's define/optimizeDeps for Buffer support.
@@ -235,7 +235,7 @@ export function CrossChainBridgeCard() {
         {/* SDK Info */}
         <div className="text-xs text-muted-foreground space-y-1 border-t pt-3">
           <div className="flex items-center justify-between">
-            <span>Powered by Avail Nexus</span>
+            <span>Powered by Nexus SDK</span>
             <Badge variant="outline" className="text-xs">v1.1.0</Badge>
           </div>
           <p>

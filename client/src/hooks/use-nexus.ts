@@ -35,7 +35,7 @@ export function useNexus() {
       const { setupBufferPolyfill } = await import('../polyfills');
       await setupBufferPolyfill();
       
-      // Dynamically import Nexus SDK after polyfills are loaded
+      // Dynamically import Nexus SDK after polyfills are loaded  
       const { NexusSDK } = await import('@avail-project/nexus');
       
       console.log('Attempting to initialize Nexus SDK...');
