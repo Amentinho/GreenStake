@@ -140,26 +140,25 @@ Preferred communication style: Simple, everyday language.
 
 **Avail Nexus**: Cross-chain bridging powered by Avail data availability
 - **Purpose**: Enable cross-chain energy trades between EVM chains using Avail as underlying infrastructure
-- **How It Works**: Nexus bridges assets between EVM chains (e.g., Sepolia ↔ Base Sepolia), using Avail for data availability and settlement
 - **SDK**: `@avail-project/nexus` v1.1.0 (unified package)
-- **Status**: ✅ Fully integrated and functional
-- **Supported Testnet Chains**:
-  - Sepolia (11155111) - Source chain
-  - Base Sepolia (84532) - Current destination chain
-  - Polygon Amoy (80002)
-  - Arbitrum Sepolia (421614)
-  - Optimism Sepolia (11155420)
+- **Status**: ✅ Integrated and functional for mainnet chains only
+- **Important Limitation**: Nexus SDK (powered by Arcana CA) **only supports mainnet chains**, NOT testnets
+  - ❌ Testnet chains blocked: Sepolia (11155111), Base Sepolia (84532), Polygon Amoy (80002), Arbitrum Sepolia (421614), Optimism Sepolia (11155420)
+  - ✅ Mainnet chains supported: Ethereum (1), Polygon (137), Arbitrum (42161), Optimism (10), Base (8453)
+  - **Error on testnets**: "universe is not supported" when attempting to use chain abstraction features
 - **Implementation**: 
   - Lazy SDK initialization (loads only when cross-chain button clicked)
   - `useNexus` hook with `transfer()` method
   - Async Buffer polyfill for browser compatibility (`client/src/polyfills.ts`)
+  - Hooks configured immediately after SDK init: `setOnAllowanceHook()` and `setOnIntentHook()`
   - **Cross-Chain Trading**: TradeCard supports both on-chain and cross-chain modes
-    - Toggle between "On-Chain Trade" (Sepolia only) and "Cross-Chain via Nexus"
-    - Nexus SDK bridges ETH from Sepolia to Base Sepolia
-    - Automatic intent and allowance approval for demo
-    - Dual explorer links (Sepolia Etherscan + Base Sepolia Basescan)
-    - Transaction hash tracking for both source and destination chains
-- **Production Ready**: SDK initializes successfully in browser environment
+    - Toggle between "On-Chain Trade" and "Cross-Chain via Nexus"
+    - Conditional logic: testnet shows helpful message, mainnet uses Nexus SDK
+    - For Sepolia testnet demo, users directed to official Base bridge (bridge.base.org)
+    - Dynamic destination chain routing (Ethereum → Base, Base → Ethereum, etc.)
+    - Chain-specific explorer links (Etherscan, Polygonscan, Arbiscan, Basescan, etc.)
+    - Activity history tracks actual chain IDs and transaction status
+- **Production Ready**: SDK will work seamlessly on mainnet chains (Ethereum, Polygon, Arbitrum, Base, Optimism)
 
 **WalletConnect**: Multi-wallet connectivity
 - **Version**: v2
