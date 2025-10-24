@@ -8,7 +8,8 @@
 
 GreenStake is a decentralized energy exchange platform that enables community-based renewable energy trading with transparent, blockchain-powered transactions. The platform combines AI-powered forecasting, oracle-based pricing, and stablecoin settlements to create a sustainable and efficient energy trading marketplace.
 
-**🚀 Live Demo**: [https://github.com/Amentinho/GreenStake/](https://github.com/Amentinho/GreenStake/)
+**🚀 Live Demo**: [https://budget-buddy-andreaamenta87.replit.app/](https://budget-buddy-andreaamenta87.replit.app/)  
+**📂 Repository**: [https://github.com/Amentinho/GreenStake/](https://github.com/Amentinho/GreenStake/)
 
 ### Key Features
 
