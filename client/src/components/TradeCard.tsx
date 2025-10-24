@@ -351,6 +351,9 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
     
     if (isTestnet) {
       // Testnet chains are not supported by Nexus SDK (Arcana CA limitation)
+      // Determine destination testnet (Sepolia → Base Sepolia, Base Sepolia → Sepolia, etc.)
+      const destTestnetChainId = chain.id === 11155111 ? 84532 : 11155111;
+      
       toast({
         title: "Testnet Bridging Limitation",
         description: (
@@ -370,11 +373,11 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
         ),
       });
 
-      // Save a record showing testnet bridge was blocked
+      // Save a record showing testnet bridge was blocked with actual chain IDs
       await api.createTrade({
         walletAddress,
-        fromChain: CHAINS.ETHEREUM_SEPOLIA,
-        toChain: CHAINS.BASE_SEPOLIA,
+        fromChain: chain.id,
+        toChain: destTestnetChainId,
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'failed',
@@ -444,14 +447,29 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
 
       queryClient.invalidateQueries({ queryKey: ['/api/trade', walletAddress] });
       
+      // Get explorer URLs based on actual chain IDs
+      const getExplorerUrl = (chainId: number, txHash: string) => {
+        const explorers: Record<number, string> = {
+          1: 'https://etherscan.io/tx/',
+          137: 'https://polygonscan.com/tx/',
+          42161: 'https://arbiscan.io/tx/',
+          10: 'https://optimistic.etherscan.io/tx/',
+          8453: 'https://basescan.org/tx/',
+        };
+        return explorers[chainId] ? `${explorers[chainId]}${txHash}` : null;
+      };
+      
+      const sourceExplorerUrl = sourceTx !== 'pending' ? getExplorerUrl(chain.id, sourceTx) : null;
+      const destExplorerUrl = destTx !== 'pending' ? getExplorerUrl(destChainId, destTx) : null;
+      
       toast({
         title: "Cross-Chain Transfer Success!",
         description: (
           <div className="space-y-2">
             <p>Bridged {tradeAmount} ETH via Nexus</p>
-            {sourceTx !== 'pending' && (
+            {sourceExplorerUrl && (
               <a
-                href={`https://etherscan.io/tx/${sourceTx}`}
+                href={sourceExplorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-primary hover:underline"
@@ -459,9 +477,9 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
                 View Source TX <ExternalLink className="h-3 w-3" />
               </a>
             )}
-            {destTx !== 'pending' && (
+            {destExplorerUrl && (
               <a
-                href={`https://basescan.org/tx/${destTx}`}
+                href={destExplorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-primary hover:underline"
