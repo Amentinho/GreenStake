@@ -112,6 +112,9 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
         transactionHash: txHash,
       });
 
+      // Immediately refetch the staked balance from contract
+      await refetchBalance();
+
       toast({
         title: "Stake Successful! 🎉",
         description: (
@@ -129,9 +132,8 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
         ),
       });
 
-      // Invalidate queries to refresh activity history and contract balances
+      // Invalidate queries to refresh activity history
       queryClient.invalidateQueries({ queryKey: ['/api/stake', walletAddress] });
-      refetchBalance();
       
       onStakeComplete();
     } catch (error) {
@@ -140,6 +142,9 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
   };
 
   const handleUnstakeSuccess = async (txHash: string) => {
+    // Immediately refetch the staked balance from contract
+    await refetchBalance();
+
     toast({
       title: "Unstake Successful! ✅",
       description: (
@@ -157,9 +162,8 @@ export function StakeCard({ walletAddress, forecastValue, onStakeComplete }: Sta
       ),
     });
 
-    // Refresh balances
+    // Refresh activity history
     queryClient.invalidateQueries({ queryKey: ['/api/stake', walletAddress] });
-    refetchBalance();
   };
 
   const handleStake = async () => {

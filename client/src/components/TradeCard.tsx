@@ -376,8 +376,8 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       // Save a record showing testnet bridge was blocked with actual chain IDs
       await api.createTrade({
         walletAddress,
-        fromChain: chain.id,
-        toChain: destTestnetChainId,
+        fromChain: chain.id.toString(),
+        toChain: destTestnetChainId.toString(),
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'failed',
@@ -437,8 +437,8 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       // Save successful trade record with actual chain IDs
       await api.createTrade({
         walletAddress,
-        fromChain: chain.id,
-        toChain: destChainId,
+        fromChain: chain.id.toString(),
+        toChain: destChainId.toString(),
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'completed',
@@ -500,8 +500,8 @@ export function TradeCard({ walletAddress, stakeCompleted }: TradeCardProps) {
       // Save failed trade record with actual chain info
       await api.createTrade({
         walletAddress,
-        fromChain: chain.id,
-        toChain: chain.id === 1 ? 8453 : 1,
+        fromChain: chain.id.toString(),
+        toChain: (chain.id === 1 ? 8453 : 1).toString(),
         etkAmount: tradeAmount,
         pyusdAmount: pyusdAmount,
         status: 'failed',

@@ -53,36 +53,30 @@ export default function Home() {
                 {/* Network switcher alert */}
                 <NetworkSwitcher />
                 
-                {/* Main trading interface */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                  {/* Left column */}
-                  <div className="space-y-6">
-                    <ForecastCard
-                      walletAddress={address!}
-                      onForecastComplete={setForecastValue}
-                    />
-                    <StakeCard
-                      walletAddress={address!}
-                      forecastValue={forecastValue}
-                      onStakeComplete={() => setStakeCompleted(true)}
-                    />
-                  </div>
-
-                  {/* Right column */}
-                  <div className="space-y-6">
-                    <TradeCard
-                      walletAddress={address!}
-                      stakeCompleted={stakeCompleted}
-                    />
-                    <ActivityHistory walletAddress={address!} />
-                  </div>
+                {/* Main trading interface - vertical layout */}
+                <div className="max-w-3xl mx-auto space-y-6">
+                  <ForecastCard
+                    walletAddress={address!}
+                    onForecastComplete={setForecastValue}
+                  />
+                  
+                  <StakeCard
+                    walletAddress={address!}
+                    forecastValue={forecastValue}
+                    onStakeComplete={() => setStakeCompleted(true)}
+                  />
+                  
+                  <TradeCard
+                    walletAddress={address!}
+                    stakeCompleted={stakeCompleted}
+                  />
+                  
+                  <CrossChainBridgeCard />
+                  
+                  <ActivityHistory walletAddress={address!} />
+                  
+                  <ExplorerEmbed walletAddress={address} />
                 </div>
-
-                {/* Cross-chain bridge - full width */}
-                <CrossChainBridgeCard />
-
-                {/* Explorer embed - full width */}
-                <ExplorerEmbed walletAddress={address} />
               </div>
             )}
           </div>
