@@ -1,7 +1,7 @@
 # GreenStake: Sustainable Energy DEX
 
 ![GreenStake](https://img.shields.io/badge/Platform-Web3-green)
-![Bounties](https://img.shields.io/badge/Bounties-$13.5K-brightgreen)
+![Bounties](https://img.shields.io/badge/ETHGlobal-ETHOnline_2025-blue)
 ![Status](https://img.shields.io/badge/Status-Live_MVP-success)
 
 ## Overview
@@ -24,14 +24,13 @@ GreenStake is a decentralized energy exchange platform that enables community-ba
 
 This project qualifies for blockchain ecosystem bounties:
 
-| Bounty | Amount | Integration Status |
-|--------|--------|-------------------|
-| **PYUSD** | $10,000 | ✅ Real PYUSD ERC20 settlements on Sepolia |
-| **Blockscout Autoscout** | $3,500 | ✅ Embedded explorer with real-time tracking |
-| **Total** | **$13,500** | |
+| Bounty | Prize Link | Integration Status |
+|--------|-----------|-------------------|
+| **PYUSD** | [ETHGlobal Prize](https://ethglobal.com/events/ethonline2025/prizes) | ✅ Real PYUSD ERC20 settlements on Sepolia |
+| **Pyth Network** | [ETHGlobal Prize](https://ethglobal.com/events/ethonline2025/prizes/pyth) | ✅ Oracle price feeds integrated in smart contract |
+| **Blockscout Autoscout** | [ETHGlobal Prize](https://ethglobal.com/events/ethonline2025/prizes) | ✅ Embedded explorer with real-time tracking |
 
 ### Additional Integrations
-- **Pyth Network Oracle**: Decentralized price feeds for energy pricing ✅
 - **Hugging Face AI**: GPT-2 model for consumption forecasting ✅
 
 ## Smart Contract Deployment
